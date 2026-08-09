@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { SavedMeal, formatCurrency } from "@/lib/types";
 import { mealVisual, estimatePickupMinutes } from "@/lib/mealVisuals";
 
@@ -52,11 +53,23 @@ export default function ConfirmationScreen({
 
       <div className="w-full max-w-xs rounded-2xl bg-zinc-50 p-4 text-left">
         <div className="flex items-center gap-3">
-          <span
-            className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-2xl ${gradient}`}
-          >
-            {emoji}
-          </span>
+          {meal.imageUrl ? (
+            <span className="relative flex h-11 w-11 flex-shrink-0 overflow-hidden rounded-xl bg-zinc-200">
+              <Image
+                src={meal.imageUrl}
+                alt={meal.name}
+                fill
+                sizes="44px"
+                className="object-cover"
+              />
+            </span>
+          ) : (
+            <span
+              className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-2xl ${gradient}`}
+            >
+              {emoji}
+            </span>
+          )}
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-zinc-900">
               {meal.name}

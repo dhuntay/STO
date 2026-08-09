@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { SavedMeal } from "@/lib/types";
 import { mealVisual } from "@/lib/mealVisuals";
 
@@ -33,11 +34,23 @@ export default function ThumbnailRail({
                 : "border-transparent bg-zinc-100 hover:bg-zinc-200"
             }`}
           >
-            <span
-              className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-2xl ${gradient}`}
-            >
-              {emoji}
-            </span>
+            {meal.imageUrl ? (
+              <span className="relative flex h-11 w-11 overflow-hidden rounded-xl bg-zinc-200">
+                <Image
+                  src={meal.imageUrl}
+                  alt={meal.name}
+                  fill
+                  sizes="44px"
+                  className="object-cover"
+                />
+              </span>
+            ) : (
+              <span
+                className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-2xl ${gradient}`}
+              >
+                {emoji}
+              </span>
+            )}
             <span className="max-w-[72px] truncate text-[11px] font-medium text-zinc-700">
               {meal.name}
             </span>
