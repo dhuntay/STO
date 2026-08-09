@@ -17,7 +17,7 @@ export default async function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <h1 className="text-xl font-bold tracking-tight text-zinc-900">
-            SwipeOrder
+            Swipe2Order
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
             Sign in to order the meals you&apos;ve saved.

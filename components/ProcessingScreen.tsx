@@ -28,7 +28,7 @@ export default function ProcessingScreen({ onDone }: Props) {
       <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
       <p className="text-sm font-medium text-zinc-700">{STEPS[stepIndex]}</p>
       <p className="text-xs text-zinc-400">
-        No SwipeOrder fee. Your card never leaves your device wallet.
+        No Swipe2Order fee. Your card never leaves your device wallet.
       </p>
     </div>
   );

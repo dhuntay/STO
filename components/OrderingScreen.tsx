@@ -79,7 +79,7 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-zinc-50 px-4 pb-4 pt-3 sm:px-6">
       <header className="flex flex-shrink-0 items-center justify-between pb-3">
         <h1 className="text-lg font-bold tracking-tight text-zinc-900">
-          SwipeOrder
+          Swipe2Order
         </h1>
         <div className="flex items-center gap-3">
           <Link
