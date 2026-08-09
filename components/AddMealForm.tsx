@@ -2,16 +2,62 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import RestaurantAutocompleteInput, {
+  SelectedPlace,
+} from "@/components/RestaurantAutocompleteInput";
+import { resolveCuisineMenu } from "@/lib/cuisineMenu";
+
+const OTHER_OPTION = "__other__";
 
 export default function AddMealForm() {
   const router = useRouter();
   const [restaurant, setRestaurant] = useState("");
+  const [restaurantAddress, setRestaurantAddress] = useState<string | null>(null);
+  const [restaurantPlaceId, setRestaurantPlaceId] = useState<string | null>(null);
+  const [cuisineType, setCuisineType] = useState<string | null>(null);
+  const [cuisineLabel, setCuisineLabel] = useState<string | null>(null);
+  const [menuItems, setMenuItems] = useState<string[]>([]);
+
   const [name, setName] = useState("");
+  const [useCustomName, setUseCustomName] = useState(true);
   const [ingredients, setIngredients] = useState("");
   const [price, setPrice] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function handlePlaceSelected(place: SelectedPlace) {
+    setRestaurant(place.name);
+    setRestaurantAddress(place.address);
+    setRestaurantPlaceId(place.placeId);
+
+    const { cuisineType, label, items } = resolveCuisineMenu(place.types);
+    setCuisineType(cuisineType);
+    setCuisineLabel(label);
+    setMenuItems(items);
+    setUseCustomName(false);
+    setName(items[0] ?? "");
+  }
+
+  function handleRestaurantTyped(value: string) {
+    setRestaurant(value);
+    // Once the user edits the restaurant name away from what autocomplete
+    // filled in, the previously matched place/cuisine no longer applies.
+    setRestaurantAddress(null);
+    setRestaurantPlaceId(null);
+    setCuisineType(null);
+    setCuisineLabel(null);
+    setMenuItems([]);
+    setUseCustomName(true);
+  }
+
+  function handleNameSelectChange(value: string) {
+    if (value === OTHER_OPTION) {
+      setUseCustomName(true);
+      setName("");
+    } else {
+      setName(value);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,19 +78,30 @@ export default function AddMealForm() {
       setError("List at least one main ingredient.");
       return;
     }
+    if (!name.trim()) {
+      setError("Enter a meal name.");
+      return;
+    }
 
     setLoading(true);
-    const supabase = createClient();
-    const { error: insertError } = await supabase.from("saved_meals").insert({
-      restaurant: restaurant.trim(),
-      name: name.trim(),
-      main_ingredients: mainIngredients,
-      price: parsedPrice,
+    const res = await fetch("/api/meals", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        restaurant: restaurant.trim(),
+        name: name.trim(),
+        mainIngredients,
+        price: parsedPrice,
+        restaurantAddress,
+        restaurantPlaceId,
+        cuisineType,
+      }),
     });
     setLoading(false);
 
-    if (insertError) {
-      setError(insertError.message);
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Something went wrong saving this meal.");
       return;
     }
 
@@ -64,14 +121,16 @@ export default function AddMealForm() {
         >
           Restaurant
         </label>
-        <input
-          id="restaurant"
-          required
+        <RestaurantAutocompleteInput
           value={restaurant}
-          onChange={(e) => setRestaurant(e.target.value)}
-          placeholder="Tony's Pizzeria"
-          className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+          onChange={handleRestaurantTyped}
+          onPlaceSelected={handlePlaceSelected}
         />
+        {restaurantAddress && (
+          <p className="mt-1 truncate text-[11px] text-zinc-400">
+            {restaurantAddress}
+          </p>
+        )}
       </div>
 
       <div>
@@ -81,14 +140,37 @@ export default function AddMealForm() {
         >
           Meal name
         </label>
-        <input
-          id="name"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Friday Pepperoni Pizza"
-          className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
-        />
+
+        {!useCustomName && menuItems.length > 0 ? (
+          <>
+            <select
+              id="name"
+              value={name}
+              onChange={(e) => handleNameSelectChange(e.target.value)}
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+            >
+              {menuItems.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+              <option value={OTHER_OPTION}>Other (type my own)…</option>
+            </select>
+            <p className="mt-1 text-[11px] text-zinc-400">
+              Common {cuisineLabel?.toLowerCase()} items — not {restaurant}
+              &apos;s confirmed menu.
+            </p>
+          </>
+        ) : (
+          <input
+            id="name"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Friday Pepperoni Pizza"
+            className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+          />
+        )}
       </div>
 
       <div>
