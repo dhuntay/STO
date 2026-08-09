@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import HeroMealCard from "@/components/HeroMealCard";
 import ThumbnailRail from "@/components/ThumbnailRail";
 import MoreInfoSheet from "@/components/MoreInfoSheet";
+import SwipeToOrder from "@/components/SwipeToOrder";
 import { savedMeals } from "@/lib/meals";
 
 export default function Home() {
@@ -15,9 +16,9 @@ export default function Home() {
     [selectedId]
   );
 
-  function handleOrder() {
-    // Swipe-to-order gesture wired in next.
-    console.log("order placed for", selectedMeal.id);
+  function handleSwipeComplete() {
+    // Wired to the mock auth + confirmation flow next.
+    console.log("swipe complete for", selectedMeal.id);
   }
 
   return (
@@ -40,12 +41,7 @@ export default function Home() {
           onSelect={setSelectedId}
         />
 
-        <button
-          onClick={handleOrder}
-          className="flex-shrink-0 rounded-full bg-emerald-600 py-4 text-center font-semibold text-white"
-        >
-          Swipe to order (placeholder)
-        </button>
+        <SwipeToOrder onSwipeComplete={handleSwipeComplete} />
       </main>
 
       <MoreInfoSheet
