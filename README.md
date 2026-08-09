@@ -54,9 +54,15 @@ data.
   implement biometrics.)
 - **Self-pickup only**, per MVP scope — no delivery, driver, or refund
   flows.
-- **Meal photos are placeholder emoji**, not uploaded images — a
-  deterministic emoji/gradient is derived from each meal's id
-  (`lib/mealVisuals.ts`) so a given meal always looks the same.
+- **Restaurant "menu" suggestions are generic, not real.** Google Places
+  has no menu API. Once a restaurant is selected via Autocomplete, the Meal
+  name field offers common items for that cuisine (curated in
+  `lib/cuisineMenu.ts`) — the form says so explicitly, and "Other" always
+  falls back to free text.
+- **Meal photos fall back to placeholder emoji** when Unsplash search
+  returns nothing (or the key isn't configured) — a deterministic
+  emoji/gradient is derived from each meal's id (`lib/mealVisuals.ts`) so a
+  given meal always looks the same.
 
 ## Supabase setup
 
@@ -81,6 +87,52 @@ into the app, check your inbox for the confirmation link, or turn off
 "Confirm email" under Authentication → Providers → Email in the Supabase
 dashboard for frictionless local testing.
 
+## Unsplash setup (meal photos)
+
+Each meal's hero photo is searched on Unsplash by meal name and cached on
+the row so it's only fetched once. Env var, server-only (never sent to the
+browser):
+
+```
+UNSPLASH_ACCESS_KEY
+```
+
+Get one from https://unsplash.com/oauth/applications. Without this set,
+meals just show the emoji/gradient placeholder — nothing breaks. New meals
+are photographed at save time; existing meals without a photo are
+backfilled the next time `/` loads (see the backfill loop in
+`app/page.tsx`). Attribution ("Photo by X on Unsplash", both links pointing
+back to Unsplash with `utm_source=swipeorder`) renders under the hero image
+whenever a photo is present, per Unsplash's API guidelines — see
+`components/PhotoCredit.tsx`. `lib/unsplash.ts` also pings Unsplash's
+`download_location` endpoint when a photo is selected, as their guidelines
+require.
+
+## Google Places setup (restaurant autocomplete)
+
+The Restaurant field in Add Meal uses the Places Autocomplete widget,
+biased to the browser's geolocation (permission requested client-side; the
+form still works fine if it's denied). Env var, **must be public** since it
+loads in the browser:
+
+```
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+```
+
+In Google Cloud Console: enable **Maps JavaScript API** and **Places API
+(New)** on the project, then restrict the key by **HTTP referrer** to your
+`*.vercel.app` domain(s) (and `localhost` for local dev) — it's a
+client-side key by necessity, so this restriction is what keeps it from
+being freely reusable elsewhere. Without this set, the Restaurant field
+just degrades to a plain text input.
+
+Once a restaurant is selected, `lib/cuisineMenu.ts` maps its Google Places
+type (e.g. `pizza_restaurant`, `indian_restaurant`) to a curated list of
+common items for that cuisine, shown as the Meal name dropdown. There's no
+Google API for a restaurant's actual menu — the UI says explicitly that
+these are common items for the cuisine, not the restaurant's confirmed
+menu, and "Other" always lets you type your own.
+
 ## Running locally
 
 ```bash
@@ -101,25 +153,31 @@ npm run lint    # eslint
 
 ```
 app/
-  page.tsx              Server component: auth-gates "/", fetches the signed-in user's saved meals
+  page.tsx              Server component: auth-gates "/", fetches meals, backfills missing photos
+  api/meals/route.ts     POST: server-side Unsplash search + Supabase insert (needs the secret key)
   login/page.tsx         Sign-in/sign-up screen (redirects to "/" if already logged in)
   meals/new/page.tsx     Add Meal screen (redirects to "/login" if signed out)
   layout.tsx, globals.css
 components/
-  OrderingScreen.tsx     Client state machine: idle → authenticating → processing → confirmed
-  HeroMealCard.tsx        Hero presentation for the selected saved meal
+  OrderingScreen.tsx      Client state machine: idle → authenticating → processing → confirmed
+  HeroMealCard.tsx        Hero presentation — real photo or emoji/gradient fallback
   ThumbnailRail.tsx       Compact selectors for other saved meals + "Add meal" tile
   MoreInfoSheet.tsx       Secondary info (ingredients, price, saved date) + remove action
+  PhotoCredit.tsx         "Photo by X on Unsplash" attribution line
   SwipeToOrder.tsx        Swipe-to-order gesture control
   AuthModal.tsx           Mock face/fingerprint device authentication (per-order, not login)
   ProcessingScreen.tsx    Mock payment authorization + order-send step
   ConfirmationScreen.tsx  Order number + pickup status tracker
   LoginForm.tsx           Supabase email/password sign-in and sign-up
-  AddMealForm.tsx         Insert a saved meal into Supabase for the current user
+  AddMealForm.tsx         Add Meal form — Places autocomplete + cuisine menu dropdown
+  RestaurantAutocompleteInput.tsx  Google Places Autocomplete, geolocation-biased
   SignOutButton.tsx       Supabase sign-out
 lib/
-  types.ts               SavedMeal model
-  mealVisuals.ts          Deterministic emoji/gradient/ETA per meal id
+  types.ts               SavedMeal model + Supabase row mapper
+  mealVisuals.ts          Deterministic emoji/gradient/ETA per meal id (photo fallback)
+  unsplash.ts             Server-only Unsplash search
+  googleMaps.ts           Client-side Maps JS loader + geolocation helper
+  cuisineMenu.ts          Google Places type → curated common-menu-items
   supabase/               Browser, server, and middleware Supabase clients
 middleware.ts             Refreshes the Supabase session cookie on every request
 supabase/migrations/      SQL schema + RLS policies
