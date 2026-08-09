@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SavedMeal, formatCurrency, mealTotal } from "@/lib/types";
+import { SavedMeal, formatCurrency } from "@/lib/types";
+import { mealVisual, estimatePickupMinutes } from "@/lib/mealVisuals";
 
 type Props = {
   meal: SavedMeal;
@@ -23,18 +24,17 @@ export default function ConfirmationScreen({
   onNewOrder,
 }: Props) {
   const [status, setStatus] = useState<PickupStatus>("sent");
+  const { emoji, gradient } = mealVisual(meal.id);
+  const etaMinutes = estimatePickupMinutes(meal.id);
 
   useEffect(() => {
     const t1 = window.setTimeout(() => setStatus("preparing"), 1200);
-    const t2 = window.setTimeout(
-      () => setStatus("ready"),
-      1200 + meal.pickupEtaMinutes * 150
-    );
+    const t2 = window.setTimeout(() => setStatus("ready"), 1200 + etaMinutes * 150);
     return () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
-  }, [meal.pickupEtaMinutes]);
+  }, [etaMinutes]);
 
   const steps: PickupStatus[] = ["sent", "preparing", "ready"];
   const currentIndex = steps.indexOf(status);
@@ -53,9 +53,9 @@ export default function ConfirmationScreen({
       <div className="w-full max-w-xs rounded-2xl bg-zinc-50 p-4 text-left">
         <div className="flex items-center gap-3">
           <span
-            className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-2xl ${meal.gradient}`}
+            className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-2xl ${gradient}`}
           >
-            {meal.emoji}
+            {emoji}
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-zinc-900">
@@ -64,7 +64,7 @@ export default function ConfirmationScreen({
             <p className="truncate text-xs text-zinc-500">{meal.restaurant}</p>
           </div>
           <p className="ml-auto flex-shrink-0 text-sm font-semibold text-zinc-900">
-            {formatCurrency(mealTotal(meal))}
+            {formatCurrency(meal.price)}
           </p>
         </div>
       </div>
@@ -87,7 +87,7 @@ export default function ConfirmationScreen({
           />
         </div>
         <p className="mt-3 text-xs text-zinc-400">
-          Estimated pickup in {meal.pickupEtaMinutes} min at {meal.restaurant}
+          Estimated pickup in {etaMinutes} min at {meal.restaurant}
         </p>
       </div>
 

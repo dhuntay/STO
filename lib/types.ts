@@ -1,24 +1,13 @@
 export type SavedMeal = {
   id: string;
-  name: string;
+  userId: string;
   restaurant: string;
-  /** Emoji used as a lightweight stand-in for a hero food photo. */
-  emoji: string;
-  /** Tailwind gradient classes used behind the hero image. */
-  gradient: string;
+  name: string;
   mainIngredients: string[];
+  /** Total price, tax included, as entered by the user. */
   price: number;
-  tax: number;
-  calories: number;
-  fullIngredients: string[];
-  dietary: string[];
-  allergens: string[];
-  pickupEtaMinutes: number;
+  createdAt: string;
 };
-
-export function mealTotal(meal: SavedMeal): number {
-  return meal.price + meal.tax;
-}
 
 export function formatCurrency(amount: number): string {
   return amount.toLocaleString("en-US", {

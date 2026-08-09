@@ -1,6 +1,7 @@
 "use client";
 
-import { SavedMeal, formatCurrency, mealTotal } from "@/lib/types";
+import { SavedMeal, formatCurrency } from "@/lib/types";
+import { mealVisual } from "@/lib/mealVisuals";
 
 type Props = {
   meal: SavedMeal;
@@ -8,17 +9,19 @@ type Props = {
 };
 
 export default function HeroMealCard({ meal, onMoreClick }: Props) {
+  const { emoji, gradient } = mealVisual(meal.id);
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-lg ring-1 ring-black/5">
       <div
-        className={`relative flex flex-[3] min-h-0 items-center justify-center bg-gradient-to-br ${meal.gradient}`}
+        className={`relative flex flex-[3] min-h-0 items-center justify-center bg-gradient-to-br ${gradient}`}
       >
         <span
           className="select-none text-[6rem] leading-none drop-shadow-sm sm:text-[8rem]"
           role="img"
           aria-label={meal.name}
         >
-          {meal.emoji}
+          {emoji}
         </span>
         <button
           onClick={onMoreClick}
@@ -47,7 +50,7 @@ export default function HeroMealCard({ meal, onMoreClick }: Props) {
               Total incl. tax
             </p>
             <p className="text-2xl font-bold text-zinc-900">
-              {formatCurrency(mealTotal(meal))}
+              {formatCurrency(meal.price)}
             </p>
           </div>
           <p className="text-xs text-zinc-400">Pickup only</p>

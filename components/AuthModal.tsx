@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SavedMeal, formatCurrency, mealTotal } from "@/lib/types";
+import { SavedMeal, formatCurrency } from "@/lib/types";
 
 type Props = {
   meal: SavedMeal;
@@ -34,7 +34,7 @@ export default function AuthModal({ meal, onSuccess, onCancel }: Props) {
           Confirm purchase
         </p>
         <p className="mt-1 text-sm text-zinc-300">
-          {meal.name} &middot; {formatCurrency(mealTotal(meal))}
+          {meal.name} &middot; {formatCurrency(meal.price)}
         </p>
 
         <div className="my-8 flex flex-col items-center gap-4">

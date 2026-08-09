@@ -1,106 +1,36 @@
-"use client";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import OrderingScreen from "@/components/OrderingScreen";
+import { SavedMeal } from "@/lib/types";
 
-import { useMemo, useState } from "react";
-import HeroMealCard from "@/components/HeroMealCard";
-import ThumbnailRail from "@/components/ThumbnailRail";
-import MoreInfoSheet from "@/components/MoreInfoSheet";
-import SwipeToOrder from "@/components/SwipeToOrder";
-import AuthModal from "@/components/AuthModal";
-import ProcessingScreen from "@/components/ProcessingScreen";
-import ConfirmationScreen from "@/components/ConfirmationScreen";
-import { savedMeals } from "@/lib/meals";
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-type Stage = "idle" | "authenticating" | "processing" | "confirmed";
-
-function generateOrderNumber() {
-  return Math.floor(1000 + Math.random() * 9000).toString();
-}
-
-export default function Home() {
-  const [selectedId, setSelectedId] = useState(savedMeals[0].id);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [stage, setStage] = useState<Stage>("idle");
-  const [orderNumber, setOrderNumber] = useState("");
-
-  const selectedMeal = useMemo(
-    () => savedMeals.find((m) => m.id === selectedId) ?? savedMeals[0],
-    [selectedId]
-  );
-
-  function handleSwipeComplete() {
-    setStage("authenticating");
+  if (!user) {
+    redirect("/login");
   }
 
-  function handleAuthSuccess() {
-    setStage("processing");
+  const { data, error } = await supabase
+    .from("saved_meals")
+    .select("id, user_id, restaurant, name, main_ingredients, price, created_at")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load saved meals: ${error.message}`);
   }
 
-  function handleAuthCancel() {
-    setStage("idle");
-  }
+  const meals: SavedMeal[] = (data ?? []).map((row) => ({
+    id: row.id,
+    userId: row.user_id,
+    restaurant: row.restaurant,
+    name: row.name,
+    mainIngredients: row.main_ingredients ?? [],
+    price: Number(row.price),
+    createdAt: row.created_at,
+  }));
 
-  function handleProcessingDone() {
-    setOrderNumber(generateOrderNumber());
-    setStage("confirmed");
-  }
-
-  function handleNewOrder() {
-    setStage("idle");
-  }
-
-  return (
-    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-zinc-50 px-4 pb-4 pt-3 sm:px-6">
-      <header className="flex flex-shrink-0 items-center justify-between pb-3">
-        <h1 className="text-lg font-bold tracking-tight text-zinc-900">
-          SwipeOrder
-        </h1>
-        <span className="text-xs text-zinc-400">Pickup</span>
-      </header>
-
-      {stage === "idle" && (
-        <main className="flex min-h-0 flex-1 flex-col gap-3">
-          <div className="min-h-0 flex-1">
-            <HeroMealCard
-              meal={selectedMeal}
-              onMoreClick={() => setMoreOpen(true)}
-            />
-          </div>
-
-          <ThumbnailRail
-            meals={savedMeals}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
-
-          <SwipeToOrder onSwipeComplete={handleSwipeComplete} />
-        </main>
-      )}
-
-      <MoreInfoSheet
-        meal={selectedMeal}
-        open={moreOpen}
-        onClose={() => setMoreOpen(false)}
-      />
-
-      {stage === "authenticating" && (
-        <AuthModal
-          meal={selectedMeal}
-          onSuccess={handleAuthSuccess}
-          onCancel={handleAuthCancel}
-        />
-      )}
-
-      {stage === "processing" && (
-        <ProcessingScreen onDone={handleProcessingDone} />
-      )}
-
-      {stage === "confirmed" && (
-        <ConfirmationScreen
-          meal={selectedMeal}
-          orderNumber={orderNumber}
-          onNewOrder={handleNewOrder}
-        />
-      )}
-    </div>
-  );
+  return <OrderingScreen initialMeals={meals} userEmail={user.email ?? ""} />;
 }
