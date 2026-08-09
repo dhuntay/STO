@@ -5,11 +5,22 @@ import HeroMealCard from "@/components/HeroMealCard";
 import ThumbnailRail from "@/components/ThumbnailRail";
 import MoreInfoSheet from "@/components/MoreInfoSheet";
 import SwipeToOrder from "@/components/SwipeToOrder";
+import AuthModal from "@/components/AuthModal";
+import ProcessingScreen from "@/components/ProcessingScreen";
+import ConfirmationScreen from "@/components/ConfirmationScreen";
 import { savedMeals } from "@/lib/meals";
+
+type Stage = "idle" | "authenticating" | "processing" | "confirmed";
+
+function generateOrderNumber() {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
 
 export default function Home() {
   const [selectedId, setSelectedId] = useState(savedMeals[0].id);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [stage, setStage] = useState<Stage>("idle");
+  const [orderNumber, setOrderNumber] = useState("");
 
   const selectedMeal = useMemo(
     () => savedMeals.find((m) => m.id === selectedId) ?? savedMeals[0],
@@ -17,8 +28,24 @@ export default function Home() {
   );
 
   function handleSwipeComplete() {
-    // Wired to the mock auth + confirmation flow next.
-    console.log("swipe complete for", selectedMeal.id);
+    setStage("authenticating");
+  }
+
+  function handleAuthSuccess() {
+    setStage("processing");
+  }
+
+  function handleAuthCancel() {
+    setStage("idle");
+  }
+
+  function handleProcessingDone() {
+    setOrderNumber(generateOrderNumber());
+    setStage("confirmed");
+  }
+
+  function handleNewOrder() {
+    setStage("idle");
   }
 
   return (
@@ -30,25 +57,50 @@ export default function Home() {
         <span className="text-xs text-zinc-400">Pickup</span>
       </header>
 
-      <main className="flex min-h-0 flex-1 flex-col gap-3">
-        <div className="min-h-0 flex-1">
-          <HeroMealCard meal={selectedMeal} onMoreClick={() => setMoreOpen(true)} />
-        </div>
+      {stage === "idle" && (
+        <main className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="min-h-0 flex-1">
+            <HeroMealCard
+              meal={selectedMeal}
+              onMoreClick={() => setMoreOpen(true)}
+            />
+          </div>
 
-        <ThumbnailRail
-          meals={savedMeals}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
+          <ThumbnailRail
+            meals={savedMeals}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+          />
 
-        <SwipeToOrder onSwipeComplete={handleSwipeComplete} />
-      </main>
+          <SwipeToOrder onSwipeComplete={handleSwipeComplete} />
+        </main>
+      )}
 
       <MoreInfoSheet
         meal={selectedMeal}
         open={moreOpen}
         onClose={() => setMoreOpen(false)}
       />
+
+      {stage === "authenticating" && (
+        <AuthModal
+          meal={selectedMeal}
+          onSuccess={handleAuthSuccess}
+          onCancel={handleAuthCancel}
+        />
+      )}
+
+      {stage === "processing" && (
+        <ProcessingScreen onDone={handleProcessingDone} />
+      )}
+
+      {stage === "confirmed" && (
+        <ConfirmationScreen
+          meal={selectedMeal}
+          orderNumber={orderNumber}
+          onNewOrder={handleNewOrder}
+        />
+      )}
     </div>
   );
 }

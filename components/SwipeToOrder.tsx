@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Props = {
   onSwipeComplete: () => void;
@@ -18,11 +18,24 @@ export default function SwipeToOrder({
   disabled = false,
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const [trackWidth, setTrackWidth] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [locked, setLocked] = useState(false);
   const startXRef = useRef(0);
   const originXRef = useRef(0);
+
+  // Measure the track so we can compute drag bounds without touching refs
+  // during render.
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const update = () => setTrackWidth(el.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   function getMaxX() {
     const track = trackRef.current;
@@ -70,8 +83,8 @@ export default function SwipeToOrder({
     }
   }
 
-  const maxX = getMaxX();
-  const progress = maxX > 0 ? dragX / maxX : 0;
+  const maxXForRender = Math.max(0, trackWidth - THUMB_SIZE - TRACK_PADDING * 2);
+  const progress = maxXForRender > 0 ? dragX / maxXForRender : 0;
 
   return (
     <div
