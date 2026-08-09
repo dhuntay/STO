@@ -4,60 +4,82 @@
 
 A no-scroll, self-pickup reorder experience: **open → choose saved meal →
 swipe → authenticate → ordered.** Built from the SwipeOrder product concept
-summary as a Next.js + TypeScript prototype.
+summary as a Next.js + TypeScript prototype, backed by Supabase for auth and
+data.
 
 ## What's implemented
 
-- **No-scroll ordering screen** (`app/page.tsx`) — fits one viewport
-  (`h-dvh`, no page scroll). One saved meal gets a hero presentation;
-  other saved meals appear as compact thumbnail selectors below it.
+- **Real accounts, per-user data** — email/password sign-up and sign-in via
+  Supabase Auth (`app/login/page.tsx`, `components/LoginForm.tsx`). Saved
+  meals live in Postgres (`saved_meals` table) with row-level security so
+  each account only ever sees its own meals — verified directly against the
+  database (one user's insert is invisible to a second user's `select`).
+- **Add Meal screen** (`app/meals/new/page.tsx`,
+  `components/AddMealForm.tsx`) — logged-in users add a saved meal with
+  restaurant, meal name, comma-separated main ingredients, and total price
+  (tax included). Writes straight to Supabase, scoped to the signed-in user.
+- **No-scroll ordering screen** (`components/OrderingScreen.tsx`) — fits one
+  viewport (`h-dvh`, no page scroll). One saved meal gets a hero
+  presentation; other saved meals appear as compact thumbnail selectors
+  below it, plus a `+ Add meal` tile. An empty state prompts first-time
+  users to add a meal before anything else shows.
 - **Primary vs. secondary info** — photo, name, restaurant, main
-  ingredients, and exact total (incl. tax) are always visible. Calories,
-  full ingredient list, dietary info, and allergens live behind a
-  `More …` bottom sheet (`components/MoreInfoSheet.tsx`) so they don't
-  clutter the primary screen.
+  ingredients, and exact total are always visible. Full ingredient list,
+  save date, and a remove action live behind a `More …` bottom sheet
+  (`components/MoreInfoSheet.tsx`).
 - **Swipe-to-order gesture** (`components/SwipeToOrder.tsx`) — a custom
-  pointer-events drag control (mouse + touch), not a tap button, so
-  ordering communicates deliberate intent. Keyboard users get an
-  equivalent via `Enter`/`Space` on the control.
-- **Mock authentication** (`components/AuthModal.tsx`) — completing the
-  swipe immediately invokes a simulated device authentication (face-first
-  with a fingerprint fallback), standing in for the OS-level Apple
-  Pay / Google Pay prompt. One successful auth covers both order
-  confirmation and payment authorization — there's no separate checkout
-  step. No biometric data is captured or stored; this is a UI stub only.
+  pointer-events drag control (mouse + touch), not a tap button. Keyboard
+  users get an equivalent via `Enter`/`Space`.
+- **Mock device authentication** (`components/AuthModal.tsx`) — completing
+  the swipe immediately invokes a *simulated* device authentication
+  (face-first with a fingerprint fallback), standing in for the OS-level
+  Apple Pay / Google Pay prompt. This is separate from the real Supabase
+  login above — it's the one-tap "confirm this specific order" step from
+  the product summary. No biometric data is captured or stored.
 - **Order confirmation + pickup status**
   (`components/ProcessingScreen.tsx`, `components/ConfirmationScreen.tsx`) —
-  after auth, a brief "authorizing payment / sending to restaurant"
-  step, then an order number and a pickup status tracker
-  (sent → preparing → ready).
-- **Saved meals the customer controls** (`lib/meals.ts`) — a small set of
-  mock saved meals (no recommendation feed, no sponsored items, no
-  cart/checkout maze, no tipping screen), matching the "no unnecessary
-  friction" pickup MVP scope from the product summary.
+  a brief "authorizing payment / sending to restaurant" step, then an order
+  number and a pickup status tracker (sent → preparing → ready).
 
 ## What's stubbed / not real
 
-- **Payment is entirely mocked.** There is no real Apple Pay, Google Pay,
-  or POS (Square/Clover/Toast) integration yet. `AuthModal` and
-  `ProcessingScreen` simulate the "one device authentication authorizes
-  payment" flow described in the product summary, but no money moves and
-  no wallet is contacted.
-- **Auth is simulated.** The face/fingerprint scan is a timed UI
-  animation, not real biometrics. In production this app should not
-  implement or store biometrics itself — that should stay with
-  Apple Pay / Google Pay / the OS, per the product direction.
-- **No backend/persistence.** Saved meals are hard-coded mock data
-  (`lib/meals.ts`). No Supabase, auth accounts, or order history yet.
+- **Payment is entirely mocked.** No real Apple Pay, Google Pay, or POS
+  (Square/Clover/Toast) integration yet. `AuthModal` and `ProcessingScreen`
+  simulate the "one device authentication authorizes payment" flow, but no
+  money moves.
+- **Device auth is simulated.** The face/fingerprint scan for confirming an
+  order is a timed UI animation, not real biometrics. (Real *account* login,
+  above, is genuine Supabase Auth — just the per-order confirmation step is
+  mocked, per the product direction that SwipeOrder itself should never
+  implement biometrics.)
 - **Self-pickup only**, per MVP scope — no delivery, driver, or refund
   flows.
+- **Meal photos are placeholder emoji**, not uploaded images — a
+  deterministic emoji/gradient is derived from each meal's id
+  (`lib/mealVisuals.ts`) so a given meal always looks the same.
 
-## Suggested next steps (per the product direction doc)
+## Supabase setup
 
-Supabase for Postgres/auth/backend, restaurant POS APIs (Square looks
-most promising first) for real order + payment, and Apple Pay / Google
-Pay for real wallet authentication — swapped in behind the same UI
-without adding a SwipeOrder-side payment/commission layer.
+This repo is linked to Vercel with the Supabase integration, which
+auto-syncs these env vars into the Vercel project (Production/Preview):
+
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+```
+
+For local development, copy `.env.local.example` to `.env.local` and fill
+in the values from Supabase Project Settings → API.
+
+The database schema lives in `supabase/migrations/0001_create_saved_meals.sql`
+— a `saved_meals` table with row-level security policies scoped to
+`auth.uid()`.
+
+**Email confirmation:** new Supabase projects require confirming your email
+before you can sign in, by default. If sign-up doesn't drop you straight
+into the app, check your inbox for the confirmation link, or turn off
+"Confirm email" under Authentication → Providers → Email in the Supabase
+dashboard for frictionless local testing.
 
 ## Running locally
 
@@ -66,9 +88,9 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Resize your browser to a phone-sized
-viewport (or open dev tools device mode) — this is designed as a
-single-screen mobile ordering experience.
+Open http://localhost:3000. Resize your browser to a phone-sized viewport
+(or open dev tools device mode) — this is designed as a single-screen
+mobile ordering experience.
 
 ```bash
 npm run build   # production build
@@ -79,16 +101,33 @@ npm run lint    # eslint
 
 ```
 app/
-  page.tsx            Screen state machine: idle → authenticating → processing → confirmed
+  page.tsx              Server component: auth-gates "/", fetches the signed-in user's saved meals
+  login/page.tsx         Sign-in/sign-up screen (redirects to "/" if already logged in)
+  meals/new/page.tsx     Add Meal screen (redirects to "/login" if signed out)
   layout.tsx, globals.css
 components/
-  HeroMealCard.tsx     Hero presentation for the selected saved meal
-  ThumbnailRail.tsx    Compact selectors for other saved meals
-  MoreInfoSheet.tsx    Secondary info (calories, full ingredients, dietary, allergens)
-  SwipeToOrder.tsx     Swipe-to-order gesture control
-  AuthModal.tsx        Mock face/fingerprint device authentication
-  ProcessingScreen.tsx Mock payment authorization + order-send step
+  OrderingScreen.tsx     Client state machine: idle → authenticating → processing → confirmed
+  HeroMealCard.tsx        Hero presentation for the selected saved meal
+  ThumbnailRail.tsx       Compact selectors for other saved meals + "Add meal" tile
+  MoreInfoSheet.tsx       Secondary info (ingredients, price, saved date) + remove action
+  SwipeToOrder.tsx        Swipe-to-order gesture control
+  AuthModal.tsx           Mock face/fingerprint device authentication (per-order, not login)
+  ProcessingScreen.tsx    Mock payment authorization + order-send step
   ConfirmationScreen.tsx  Order number + pickup status tracker
+  LoginForm.tsx           Supabase email/password sign-in and sign-up
+  AddMealForm.tsx         Insert a saved meal into Supabase for the current user
+  SignOutButton.tsx       Supabase sign-out
 lib/
-  types.ts, meals.ts   SavedMeal model + mock saved meals
+  types.ts               SavedMeal model
+  mealVisuals.ts          Deterministic emoji/gradient/ETA per meal id
+  supabase/               Browser, server, and middleware Supabase clients
+middleware.ts             Refreshes the Supabase session cookie on every request
+supabase/migrations/      SQL schema + RLS policies
 ```
+
+## Suggested next steps (per the product direction doc)
+
+Restaurant POS APIs (Square looks most promising first) for real order +
+payment, and Apple Pay / Google Pay for real wallet authentication — swapped
+in behind the same UI without adding a SwipeOrder-side payment/commission
+layer.
