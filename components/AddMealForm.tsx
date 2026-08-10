@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import RestaurantAutocompleteInput, {
   SelectedPlace,
 } from "@/components/RestaurantAutocompleteInput";
-import { resolveCuisineMenu } from "@/lib/cuisineMenu";
+import { resolveCuisineMenu, MenuItem } from "@/lib/cuisineMenu";
 
 const OTHER_OPTION = "__other__";
 
@@ -16,7 +16,8 @@ export default function AddMealForm() {
   const [restaurantPlaceId, setRestaurantPlaceId] = useState<string | null>(null);
   const [cuisineType, setCuisineType] = useState<string | null>(null);
   const [cuisineLabel, setCuisineLabel] = useState<string | null>(null);
-  const [menuItems, setMenuItems] = useState<string[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [autoFilled, setAutoFilled] = useState(false);
 
   const [name, setName] = useState("");
   const [useCustomName, setUseCustomName] = useState(true);
@@ -35,7 +36,18 @@ export default function AddMealForm() {
     setCuisineLabel(label);
     setMenuItems(items);
     setUseCustomName(false);
-    setName(items[0] ?? "");
+    applyMenuItem(items[0]);
+  }
+
+  /** Selecting a known menu item fills in what that dish normally contains
+   * and typically costs, so the customer isn't retyping it. Both stay
+   * editable. */
+  function applyMenuItem(item: MenuItem | undefined) {
+    if (!item) return;
+    setName(item.name);
+    setIngredients(item.ingredients.join(", "));
+    setPrice(item.price.toFixed(2));
+    setAutoFilled(true);
   }
 
   function handleRestaurantTyped(value: string) {
@@ -48,15 +60,19 @@ export default function AddMealForm() {
     setCuisineLabel(null);
     setMenuItems([]);
     setUseCustomName(true);
+    setAutoFilled(false);
   }
 
   function handleNameSelectChange(value: string) {
     if (value === OTHER_OPTION) {
       setUseCustomName(true);
       setName("");
-    } else {
-      setName(value);
+      setIngredients("");
+      setPrice("");
+      setAutoFilled(false);
+      return;
     }
+    applyMenuItem(menuItems.find((item) => item.name === value));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -150,8 +166,8 @@ export default function AddMealForm() {
               className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
             >
               {menuItems.map((item) => (
-                <option key={item} value={item}>
-                  {item}
+                <option key={item.name} value={item.name}>
+                  {item.name}
                 </option>
               ))}
               <option value={OTHER_OPTION}>Other (type my own)…</option>
@@ -188,7 +204,11 @@ export default function AddMealForm() {
           placeholder="Pepperoni, Mozzarella, San Marzano Sauce"
           className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
         />
-        <p className="mt-1 text-[11px] text-zinc-400">Separate with commas.</p>
+        <p className="mt-1 text-[11px] text-zinc-400">
+          {autoFilled
+            ? "Typical ingredients for this dish — edit if yours differs."
+            : "Separate with commas."}
+        </p>
       </div>
 
       <div>
@@ -210,7 +230,20 @@ export default function AddMealForm() {
           placeholder="14.50"
           className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
         />
+        {autoFilled && (
+          <p className="mt-1 text-[11px] text-zinc-400">
+            Typical price for this dish — edit to match what you actually pay.
+          </p>
+        )}
       </div>
+
+      {autoFilled && (
+        <p className="rounded-xl bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+          Ingredients and price were filled in from a typical{" "}
+          {cuisineLabel?.toLowerCase()} order. Once a restaurant is connected
+          through its POS, these will come from the real menu instead.
+        </p>
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

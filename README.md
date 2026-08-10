@@ -54,11 +54,15 @@ data.
   implement biometrics.)
 - **Self-pickup only**, per MVP scope — no delivery, driver, or refund
   flows.
-- **Restaurant "menu" suggestions are generic, not real.** Google Places
-  has no menu API. Once a restaurant is selected via Autocomplete, the Meal
-  name field offers common items for that cuisine (curated in
-  `lib/cuisineMenu.ts`) — the form says so explicitly, and "Other" always
-  falls back to free text.
+- **Restaurant "menu" suggestions, ingredients and prices are generic, not
+  real.** Google Places has no menu or pricing API. Once a restaurant is
+  selected via Autocomplete, the Meal name field offers common items for
+  that cuisine, and picking one auto-fills representative ingredients and a
+  typical price (all curated in `lib/cuisineMenu.ts`) so the customer isn't
+  typing them by hand. The form says so explicitly, every field stays
+  editable, and "Other" falls back to free text. Real menu items,
+  ingredients and exact prices should come from the restaurant's POS once
+  integrated.
 - **Meal photos fall back to placeholder emoji** when Unsplash search
   returns nothing (or the key isn't configured) — a deterministic
   emoji/gradient is derived from each meal's id (`lib/mealVisuals.ts`) so a
