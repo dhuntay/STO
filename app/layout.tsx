@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Swipe2Order",
+  title: "Swipe2Reorder",
   description:
-    "Reorder food you already know and love with one swipe and one secure device authentication.",
+    "Reorder the food you already love with one swipe and one secure device authentication.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
