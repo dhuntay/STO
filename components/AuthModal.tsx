@@ -12,20 +12,37 @@ type Props = {
 type Method = "face" | "fingerprint";
 type Phase = "scanning" | "success";
 
+// Deliberately unhurried: a real wallet/device prompt takes a beat, and the
+// customer should be able to see what they're authorizing before it clears.
+const SCAN_MS = 2500;
+const SUCCESS_HOLD_MS = 1200;
+
 export default function AuthModal({ meal, onSuccess, onCancel }: Props) {
   const [method, setMethod] = useState<Method>("face");
   const [phase, setPhase] = useState<Phase>("scanning");
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    const scanTimer = window.setTimeout(() => setPhase("success"), 1200);
-    return () => window.clearTimeout(scanTimer);
+    // Kick the progress bar on the next tick so the CSS transition runs.
+    const startTimer = window.setTimeout(() => setProgress(100), 50);
+    const scanTimer = window.setTimeout(() => setPhase("success"), SCAN_MS);
+    return () => {
+      window.clearTimeout(startTimer);
+      window.clearTimeout(scanTimer);
+    };
   }, [method]);
 
   useEffect(() => {
     if (phase !== "success") return;
-    const doneTimer = window.setTimeout(onSuccess, 500);
+    const doneTimer = window.setTimeout(onSuccess, SUCCESS_HOLD_MS);
     return () => window.clearTimeout(doneTimer);
   }, [phase, onSuccess]);
+
+  function switchToFingerprint() {
+    setProgress(0);
+    setPhase("scanning");
+    setMethod("fingerprint");
+  }
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
@@ -48,13 +65,28 @@ export default function AuthModal({ meal, onSuccess, onCancel }: Props) {
           >
             {phase === "success" ? "✓" : method === "face" ? "\u{1F464}" : "\u{1F446}"}
           </div>
-          <p className="text-sm font-medium">
+
+          <p className="text-sm font-medium" role="status" aria-live="polite">
             {phase === "success"
               ? "Authenticated"
               : method === "face"
-                ? "Scanning face..."
-                : "Scanning fingerprint..."}
+                ? "Scanning face…"
+                : "Scanning fingerprint…"}
           </p>
+
+          {phase === "scanning" && (
+            <div className="h-1 w-32 overflow-hidden rounded-full bg-white/15">
+              <div
+                className="h-full rounded-full bg-emerald-400 ease-linear"
+                style={{
+                  width: `${progress}%`,
+                  transitionProperty: "width",
+                  transitionDuration: `${SCAN_MS}ms`,
+                }}
+              />
+            </div>
+          )}
+
           <p className="max-w-[220px] text-xs text-zinc-400">
             One device authentication confirms your order and authorizes
             payment through your wallet. This is a demo simulation &mdash; no
@@ -66,7 +98,7 @@ export default function AuthModal({ meal, onSuccess, onCancel }: Props) {
           <div className="flex flex-col gap-2">
             {method === "face" && (
               <button
-                onClick={() => setMethod("fingerprint")}
+                onClick={switchToFingerprint}
                 className="text-xs font-medium text-emerald-400 hover:text-emerald-300"
               >
                 Use fingerprint instead
