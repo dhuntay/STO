@@ -5,7 +5,7 @@
 // representative ingredients and a typical price — as a starting point the
 // customer can adjust.
 //
-// These are placeholders standing in for real menu data. When SwipeOrder
+// These are placeholders standing in for real menu data. When Swipe2Reorder
 // integrates with a restaurant's POS (Square et al.), the real item,
 // ingredients and exact price should replace all of this.
 
