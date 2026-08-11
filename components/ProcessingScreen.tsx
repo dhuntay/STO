@@ -54,7 +54,7 @@ export default function ProcessingScreen({ onDone }: Props) {
       </div>
 
       <p className="text-xs text-zinc-400">
-        No Swipe2Order fee. Your card never leaves your device wallet.
+        No Swipe2Reorder fee. Your card never leaves your device wallet.
       </p>
     </div>
   );

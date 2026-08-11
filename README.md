@@ -1,9 +1,9 @@
-# Swipe2Order (MVP)
+# Swipe2Reorder (MVP)
 
 > "You already know what you want. Why order it all over again?"
 
 A no-scroll, self-pickup reorder experience: **open → choose saved meal →
-swipe → authenticate → ordered.** Built from the Swipe2Order product concept
+swipe → authenticate → ordered.** Built from the Swipe2Reorder product concept
 summary as a Next.js + TypeScript prototype, backed by Supabase for auth and
 data.
 
@@ -50,7 +50,7 @@ data.
 - **Device auth is simulated.** The face/fingerprint scan for confirming an
   order is a timed UI animation, not real biometrics. (Real *account* login,
   above, is genuine Supabase Auth — just the per-order confirmation step is
-  mocked, per the product direction that Swipe2Order itself should never
+  mocked, per the product direction that Swipe2Reorder itself should never
   implement biometrics.)
 - **Self-pickup only**, per MVP scope — no delivery, driver, or refund
   flows.
@@ -191,5 +191,5 @@ supabase/migrations/      SQL schema + RLS policies
 
 Restaurant POS APIs (Square looks most promising first) for real order +
 payment, and Apple Pay / Google Pay for real wallet authentication — swapped
-in behind the same UI without adding a Swipe2Order-side payment/commission
+in behind the same UI without adding a Swipe2Reorder-side payment/commission
 layer.
