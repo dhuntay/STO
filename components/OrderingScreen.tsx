@@ -9,13 +9,15 @@ import MoreInfoSheet from "@/components/MoreInfoSheet";
 import SwipeToOrder from "@/components/SwipeToOrder";
 import AuthModal from "@/components/AuthModal";
 import SquarePaymentModal from "@/components/SquarePaymentModal";
+import WalletCharge from "@/components/WalletCharge";
 import ProcessingScreen from "@/components/ProcessingScreen";
 import ConfirmationScreen from "@/components/ConfirmationScreen";
 import SignOutButton from "@/components/SignOutButton";
 import { createClient } from "@/lib/supabase/client";
+import { useSquareWallet } from "@/lib/useSquareWallet";
 import { SavedMeal } from "@/lib/types";
 
-type Stage = "idle" | "authenticating" | "processing" | "confirmed";
+type Stage = "idle" | "authenticating" | "authorizing" | "processing" | "confirmed";
 
 type Props = {
   initialMeals: SavedMeal[];
@@ -45,8 +47,27 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
   // original simulated flow exactly as it's always worked.
   const isTruckLinked = Boolean(selectedMeal?.truckId && selectedMeal?.menuItemId);
 
+  // Pre-warms Apple Pay/Google Pay for the selected meal *before* the
+  // customer swipes, so the swipe itself can trigger the wallet's native
+  // Face ID/fingerprint sheet with zero extra taps -- see useSquareWallet
+  // for why this can't be deferred until after the swipe. When the meal
+  // isn't truck-linked, or the wallet isn't ready/available in time, the
+  // swipe falls back to exactly the flow that already existed.
+  const wallet = useSquareWallet(
+    isTruckLinked && selectedMeal
+      ? {
+          id: selectedMeal.id,
+          truckId: selectedMeal.truckId,
+          price: selectedMeal.price,
+          restaurant: selectedMeal.restaurant,
+        }
+      : null
+  );
+  const walletMethod = wallet.applePay ?? wallet.googlePay;
+  const walletReady = isTruckLinked && wallet.status === "ready" && Boolean(walletMethod);
+
   function handleSwipeComplete() {
-    setStage("authenticating");
+    setStage(walletReady ? "authorizing" : "authenticating");
   }
 
   function handleAuthSuccess() {
@@ -60,6 +81,13 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
 
   function handleAuthCancel() {
     setStage("idle");
+  }
+
+  function handleWalletFallback() {
+    // The pre-warmed wallet path didn't pan out (declined, cancelled, or
+    // turned out not to be usable after all) -- fall back to the
+    // card-first modal instead of leaving the customer stuck.
+    setStage("authenticating");
   }
 
   function handleProcessingDone() {
@@ -172,6 +200,15 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
           open={moreOpen}
           onClose={() => setMoreOpen(false)}
           onRemove={handleRemoveMeal}
+        />
+      )}
+
+      {stage === "authorizing" && selectedMeal && walletMethod && (
+        <WalletCharge
+          meal={selectedMeal}
+          method={walletMethod}
+          onSuccess={handleSquarePaymentSuccess}
+          onFallback={handleWalletFallback}
         />
       )}
 
