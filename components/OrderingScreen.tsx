@@ -83,6 +83,19 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
         </h1>
         <div className="flex items-center gap-3">
           <Link
+            href="/trucks"
+            className="text-xs font-medium text-zinc-500 hover:text-zinc-700"
+          >
+            Food trucks
+          </Link>
+          <Link
+            href="/operator"
+            className="text-xs font-medium text-zinc-500 hover:text-zinc-700"
+          >
+            Truck owner?
+          </Link>
+          <span className="text-zinc-200">|</span>
+          <Link
             href="/meals/new"
             className="text-xs font-medium text-emerald-600 hover:text-emerald-700"
           >
