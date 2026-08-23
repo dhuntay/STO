@@ -3,7 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Truck, distanceMiles, truckMatchesQuery } from "@/lib/trucks";
+import {
+  Truck,
+  distanceMiles,
+  trucksWithinRadius,
+  truckMatchesQuery,
+  MAX_TRUCK_SEARCH_RADIUS_MILES,
+} from "@/lib/trucks";
 
 type Props = {
   trucks: Truck[];
@@ -12,7 +18,9 @@ type Props = {
 // The "Find food truck" search field from STO_Consolidated_Context.md,
 // "Truck Search & Menu Selection UX": location-aware, matches by truck
 // name/cuisine/menu content, and the customer picks from what's surfaced
-// rather than typing a free-text business name.
+// rather than typing a free-text business name. STO is nationwide, so
+// results are hard-filtered to MAX_TRUCK_SEARCH_RADIUS_MILES -- not just
+// sorted by distance -- once we know where the customer is.
 export default function TruckDiscoveryScreen({ trucks }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -32,7 +40,8 @@ export default function TruckDiscoveryScreen({ trucks }: Props) {
   }, []);
 
   const results = useMemo(() => {
-    const matched = trucks.filter((t) => truckMatchesQuery(t, query));
+    const nearby = trucksWithinRadius(trucks, coords);
+    const matched = nearby.filter((t) => truckMatchesQuery(t, query));
 
     if (!coords) return matched;
 
@@ -78,12 +87,19 @@ export default function TruckDiscoveryScreen({ trucks }: Props) {
             Location unavailable — showing all open trucks.
           </span>
         )}
+        {!locationDenied && coords && (
+          <span className="mt-1 block text-xs text-zinc-400">
+            Showing trucks within {MAX_TRUCK_SEARCH_RADIUS_MILES} miles.
+          </span>
+        )}
       </label>
 
       <main className="min-h-0 flex-1 overflow-y-auto">
         {results.length === 0 ? (
           <p className="pt-8 text-center text-sm text-zinc-400">
-            No open trucks match &ldquo;{query}&rdquo; right now.
+            {coords
+              ? `No open trucks within ${MAX_TRUCK_SEARCH_RADIUS_MILES} miles match “${query}” right now.`
+              : `No open trucks match “${query}” right now.`}
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
