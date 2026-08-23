@@ -261,6 +261,13 @@ export default function SquarePaymentModal({ meal, onSuccess, onCancel }: Props)
     if (cardRef.current) await charge(cardRef.current);
   }
 
+  // Square's card/Google Pay forms render INTO whatever DOM element these
+  // ids point at -- attach() runs as soon as the SDK loads (stage
+  // "loading-sdk"), which is before the ready-stage UI below ever mounts.
+  // These containers have to exist in the DOM from the very first render
+  // so attach() always finds them; only their visibility is stage-gated.
+  const showPaymentUi = stage === "ready" || stage === "paying";
+
   function retryFromScratch() {
     setError(null);
     setAttempt((a) => a + 1);
@@ -310,49 +317,47 @@ export default function SquarePaymentModal({ meal, onSuccess, onCancel }: Props)
           </div>
         )}
 
-        {(stage === "ready" || stage === "paying") && (
-          <div className="my-6 flex flex-col gap-3">
-            {error && <p className="text-xs text-red-400">{error}</p>}
+        <div className={showPaymentUi ? "my-6 flex flex-col gap-3" : "hidden"}>
+          {error && <p className="text-xs text-red-400">{error}</p>}
 
-            {hasApplePay && (
-              <button
-                type="button"
-                disabled={stage === "paying"}
-                onClick={() => applePayRef.current && charge(applePayRef.current)}
-                className="rounded-full bg-white py-3 text-sm font-semibold text-black disabled:opacity-50"
-              >
-                Pay with Apple Pay
-              </button>
-            )}
+          {hasApplePay && (
+            <button
+              type="button"
+              disabled={stage === "paying"}
+              onClick={() => applePayRef.current && charge(applePayRef.current)}
+              className="rounded-full bg-white py-3 text-sm font-semibold text-black disabled:opacity-50"
+            >
+              Pay with Apple Pay
+            </button>
+          )}
 
-            <div
-              id="square-google-pay-button"
-              className={hasGooglePay ? "block" : "hidden"}
-            />
+          <div
+            id="square-google-pay-button"
+            className={hasGooglePay ? "block" : "hidden"}
+          />
 
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-zinc-500">
-              <span className="h-px flex-1 bg-white/10" />
-              {hasApplePay || hasGooglePay ? "or pay with card" : "Pay with card"}
-              <span className="h-px flex-1 bg-white/10" />
-            </div>
-
-            <form onSubmit={handleCardSubmit} className="flex flex-col gap-3">
-              <div id="square-card-container" className="rounded-xl bg-white p-2" />
-              <button
-                type="submit"
-                disabled={stage === "paying"}
-                className="rounded-full bg-emerald-500 py-3 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {stage === "paying" ? "Processing…" : `Pay ${formatCurrency(meal.price)}`}
-              </button>
-            </form>
-
-            <p className="max-w-[220px] self-center text-xs text-zinc-500">
-              Your card stays in your device wallet &mdash; STO never sees or
-              stores it.
-            </p>
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide text-zinc-500">
+            <span className="h-px flex-1 bg-white/10" />
+            {hasApplePay || hasGooglePay ? "or pay with card" : "Pay with card"}
+            <span className="h-px flex-1 bg-white/10" />
           </div>
-        )}
+
+          <form onSubmit={handleCardSubmit} className="flex flex-col gap-3">
+            <div id="square-card-container" className="rounded-xl bg-white p-2" />
+            <button
+              type="submit"
+              disabled={stage === "paying"}
+              className="rounded-full bg-emerald-500 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {stage === "paying" ? "Processing…" : `Pay ${formatCurrency(meal.price)}`}
+            </button>
+          </form>
+
+          <p className="max-w-[220px] self-center text-xs text-zinc-500">
+            Your card stays in your device wallet &mdash; STO never sees or
+            stores it.
+          </p>
+        </div>
 
         <button
           onClick={onCancel}
