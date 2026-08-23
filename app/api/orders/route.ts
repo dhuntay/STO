@@ -102,7 +102,7 @@ export async function POST(request: Request) {
 
   const { data: item, error: itemError } = await supabase
     .from("menu_items")
-    .select("id, name, price, is_available_today, is_sold_out")
+    .select("id, name, price, is_available_today, is_sold_out, is_removed")
     .eq("id", meal.menu_item_id)
     .eq("truck_id", meal.truck_id)
     .maybeSingle();
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
   if (itemError) {
     return NextResponse.json({ error: itemError.message }, { status: 500 });
   }
-  if (!item || !item.is_available_today || item.is_sold_out) {
+  if (!item || item.is_removed || !item.is_available_today || item.is_sold_out) {
     return NextResponse.json(
       { error: "This item isn't available right now." },
       { status: 409 }

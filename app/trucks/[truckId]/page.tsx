@@ -6,7 +6,7 @@ import { Truck, TruckRow, MenuItemRow, mapTruckRow } from "@/lib/trucks";
 const TRUCK_COLUMNS =
   "id, name, cuisine, description, photo_url, current_location_label, " +
   "current_lat, current_lng, opens_at, closes_at, is_open, accepting_pickup, " +
-  "menu_items(id, truck_id, name, price, main_ingredients, photo_url, is_available_today, is_sold_out)";
+  "menu_items(id, truck_id, name, price, main_ingredients, photo_url, is_available_today, is_sold_out, is_removed)";
 
 // trucks.id is a Postgres uuid column -- querying it with a malformed id
 // (a stale link, a typo, a crawler probing random paths) makes Postgres

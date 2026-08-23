@@ -39,6 +39,12 @@ export type MenuItemRow = {
   photo_url: string | null;
   is_available_today: boolean;
   is_sold_out: boolean;
+  /** Soft-delete flag -- menu_items can't be hard-deleted once a real
+   * order references them (order_items.menu_item_id is a not-null FK), so
+   * "Remove" in the Operator dashboard sets this instead. Every query that
+   * embeds menu_items(...) must select this column, or a removed item
+   * will incorrectly look present here (see mapTruckRow's filter below). */
+  is_removed: boolean;
 };
 
 export type MenuItem = {
@@ -101,7 +107,11 @@ export function mapTruckRow(
     closesAt: row.closes_at,
     isOpen: row.is_open,
     acceptingPickup: row.accepting_pickup,
-    menuItems: (row.menu_items ?? []).map(mapMenuItemRow),
+    // Removed items never surface anywhere -- operator dashboard,
+    // truck discovery, or "Find food truck" menu selection.
+    menuItems: (row.menu_items ?? [])
+      .filter((item) => !item.is_removed)
+      .map(mapMenuItemRow),
     posConnected: row.pos_connected,
     squareApplicationId: row.square_application_id,
     squareLocationId: row.square_location_id,

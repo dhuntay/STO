@@ -3,6 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import AddressAutocompleteInput, {
+  SelectedAddress,
+} from "@/components/AddressAutocompleteInput";
 import {
   Truck,
   TruckRow,
@@ -21,10 +24,10 @@ const TRUCK_COLUMNS =
   "id, name, cuisine, description, photo_url, current_location_label, " +
   "current_lat, current_lng, opens_at, closes_at, is_open, accepting_pickup, " +
   "pos_connected, square_application_id, square_location_id, square_environment, " +
-  "menu_items(id, truck_id, name, price, main_ingredients, photo_url, is_available_today, is_sold_out)";
+  "menu_items(id, truck_id, name, price, main_ingredients, photo_url, is_available_today, is_sold_out, is_removed)";
 
 const MENU_ITEM_COLUMNS =
-  "id, truck_id, name, price, main_ingredients, photo_url, is_available_today, is_sold_out";
+  "id, truck_id, name, price, main_ingredients, photo_url, is_available_today, is_sold_out, is_removed";
 
 type SaveResult = { ok: true } | { ok: false; message: string };
 
@@ -298,8 +301,9 @@ function LocationCard({
   saveTruckPatch: (patch: Record<string, unknown>) => Promise<SaveResult>;
 }) {
   const [locationLabel, setLocationLabel] = useState(truck.locationLabel ?? "");
-  const [lat, setLat] = useState(truck.lat?.toString() ?? "");
-  const [lng, setLng] = useState(truck.lng?.toString() ?? "");
+  const [lat, setLat] = useState<number | null>(truck.lat);
+  const [lng, setLng] = useState<number | null>(truck.lng);
+  const [usedCurrentLocation, setUsedCurrentLocation] = useState(false);
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -314,13 +318,14 @@ function LocationCard({
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLat(pos.coords.latitude.toString());
-        setLng(pos.coords.longitude.toString());
+        setLat(pos.coords.latitude);
+        setLng(pos.coords.longitude);
+        setUsedCurrentLocation(true);
         setLocating(false);
       },
       () => {
         setError(
-          "Couldn't get your location — check the browser's location permission, or enter it manually below."
+          "Couldn't get your location — check the browser's location permission, or search for the address above."
         );
         setLocating(false);
       },
@@ -328,25 +333,22 @@ function LocationCard({
     );
   }
 
+  function handlePlaceSelected(place: SelectedAddress) {
+    setLocationLabel(place.address);
+    setLat(place.lat);
+    setLng(place.lng);
+    setUsedCurrentLocation(false);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    const parsedLat = lat.trim() === "" ? null : Number(lat);
-    const parsedLng = lng.trim() === "" ? null : Number(lng);
-    if (
-      (parsedLat !== null && !Number.isFinite(parsedLat)) ||
-      (parsedLng !== null && !Number.isFinite(parsedLng))
-    ) {
-      setError("Latitude and longitude must be numbers.");
-      return;
-    }
-
     setSaving(true);
     const result = await saveTruckPatch({
       current_location_label: locationLabel.trim() || null,
-      current_lat: parsedLat,
-      current_lng: parsedLng,
+      current_lat: lat,
+      current_lng: lng,
     });
     setSaving(false);
     if (!result.ok) {
@@ -363,11 +365,13 @@ function LocationCard({
           <label className="mb-1 block text-xs font-medium text-zinc-600">
             Where you're parked
           </label>
-          <input
+          <AddressAutocompleteInput
             value={locationLabel}
-            onChange={(e) => setLocationLabel(e.target.value)}
-            placeholder="Corner of 5th & Main"
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+            onChange={(v) => {
+              setLocationLabel(v);
+              setUsedCurrentLocation(false);
+            }}
+            onPlaceSelected={handlePlaceSelected}
           />
           <p className="mt-1 text-[11px] text-zinc-400">
             Shown to customers browsing nearby trucks.
@@ -382,33 +386,12 @@ function LocationCard({
         >
           {locating ? "Locating…" : "Use my current location"}
         </button>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">
-              Latitude
-            </label>
-            <input
-              value={lat}
-              onChange={(e) => setLat(e.target.value)}
-              inputMode="decimal"
-              placeholder="—"
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">
-              Longitude
-            </label>
-            <input
-              value={lng}
-              onChange={(e) => setLng(e.target.value)}
-              inputMode="decimal"
-              placeholder="—"
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
-            />
-          </div>
-        </div>
+        {usedCurrentLocation && lat != null && lng != null && (
+          <p className="text-[11px] text-emerald-600">
+            Using your current GPS location — you can still type an address
+            above instead.
+          </p>
+        )}
 
         {error && <p className="text-xs text-red-600">{error}</p>}
         <div className="flex items-center gap-3">
@@ -576,7 +559,8 @@ function MenuItemsCard({
     e.preventDefault();
     setError(null);
 
-    if (!itemName.trim()) {
+    const trimmedName = itemName.trim();
+    if (!trimmedName) {
       setError("Enter an item name.");
       return;
     }
@@ -585,19 +569,16 @@ function MenuItemsCard({
       setError("Enter a valid price.");
       return;
     }
-    const mainIngredients = itemIngredients
+    const typedIngredients = itemIngredients
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    // Required, not just suggested: the customer's "Add a saved meal" form
-    // shows this straight from the menu item with no way to leave it blank
-    // (it's meant to be the truck's real ingredient list, not something the
-    // customer types themselves) -- so an item saved without any here would
-    // strand a customer who picks it. See AddMealForm.tsx.
-    if (mainIngredients.length === 0) {
-      setError("List at least one main ingredient.");
-      return;
-    }
+    // Not required to type -- if left blank, default to the item's own
+    // name so customers never see a truly empty ingredients list (the
+    // customer's "Add a saved meal" form shows this straight from the menu
+    // item, with no way to leave it blank -- see AddMealForm.tsx).
+    const mainIngredients =
+      typedIngredients.length > 0 ? typedIngredients : [trimmedName];
 
     setAdding(true);
     const supabase = createClient();
@@ -605,7 +586,7 @@ function MenuItemsCard({
       .from("menu_items")
       .insert({
         truck_id: truck.id,
-        name: itemName.trim(),
+        name: trimmedName,
         price,
         main_ingredients: mainIngredients,
       })
@@ -658,13 +639,19 @@ function MenuItemsCard({
   async function handleRemoveItem(itemId: string) {
     setError(null);
     const supabase = createClient();
-    const { error: deleteError } = await supabase
+    // Can't hard-delete: order_items.menu_item_id is a not-null FK, so any
+    // item that's ever been ordered can't be DELETEd without breaking that
+    // order's history (this is exactly the error a real remove attempt hit
+    // -- "violates foreign key constraint order_items_menu_item_id_fkey").
+    // Marking it removed instead hides it here and everywhere customer-
+    // facing (see mapTruckRow in lib/trucks.ts) without touching past orders.
+    const { error: updateError } = await supabase
       .from("menu_items")
-      .delete()
+      .update({ is_removed: true })
       .eq("id", itemId);
 
-    if (deleteError) {
-      setError(deleteError.message);
+    if (updateError) {
+      setError(updateError.message);
       return;
     }
 
@@ -785,7 +772,6 @@ function MenuItemsCard({
             className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
           />
           <input
-            required
             value={itemIngredients}
             onChange={(e) => setItemIngredients(e.target.value)}
             placeholder="Pork belly, scallion, hoisin"
@@ -794,8 +780,8 @@ function MenuItemsCard({
         </div>
         <p className="text-[11px] text-zinc-400">
           Fixed values, no size/add-on variants for now — separate
-          ingredients with commas. Customers see these exactly as typed here,
-          so it's required.
+          ingredients with commas. Leave blank to just use the item name.
+          Customers see these exactly as typed here.
         </p>
         {error && <p className="text-xs text-red-600">{error}</p>}
         <button
