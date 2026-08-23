@@ -20,6 +20,7 @@ type Props = {
 const TRUCK_COLUMNS =
   "id, name, cuisine, description, photo_url, current_location_label, " +
   "current_lat, current_lng, opens_at, closes_at, is_open, accepting_pickup, " +
+  "pos_connected, square_application_id, square_location_id, square_environment, " +
   "menu_items(id, truck_id, name, price, main_ingredients, photo_url, is_available_today, is_sold_out)";
 
 const MENU_ITEM_COLUMNS =
@@ -109,6 +110,7 @@ export default function OperatorDashboard({ truck: initialTruck }: Props) {
           setDashboardError={setDashboardError}
         />
         <MenuItemsCard truck={truck} setTruck={setTruck} />
+        <PaymentsCard truck={truck} setTruck={setTruck} />
       </div>
     </div>
   );
@@ -803,6 +805,189 @@ function MenuItemsCard({
         >
           {adding ? "Adding…" : "Add item"}
         </button>
+      </form>
+    </Card>
+  );
+}
+
+// --- Payments (Square) ---------------------------------------------------
+
+// Unlike every other card, this one never touches the browser Supabase
+// client directly: truck_pos_connections (where the access token and
+// webhook signing key live) has no client-facing RLS policy at all, by
+// design -- see square_pos_connections_and_saved_meal_links migration.
+// Saving goes through POST /api/trucks/[truckId]/pos-connect instead, which
+// verifies truck ownership server-side and writes with the service-role
+// client. The non-secret fields (application id, location id, environment)
+// get echoed back into local truck state so the "Connected" badge and the
+// webhook URL below update immediately without a refetch.
+function PaymentsCard({
+  truck,
+  setTruck,
+}: {
+  truck: Truck;
+  setTruck: React.Dispatch<React.SetStateAction<Truck>>;
+}) {
+  const [applicationId, setApplicationId] = useState(truck.squareApplicationId ?? "");
+  const [locationId, setLocationId] = useState(truck.squareLocationId ?? "");
+  const [accessToken, setAccessToken] = useState("");
+  const [environment, setEnvironment] = useState<"sandbox" | "production">(
+    truck.squareEnvironment ?? "sandbox"
+  );
+  const [webhookSignatureKey, setWebhookSignatureKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, flash] = useFlash();
+
+  const webhookUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/api/webhooks/square?truckId=${truck.id}`
+      : `/api/webhooks/square?truckId=${truck.id}`;
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!applicationId.trim() || !locationId.trim() || !accessToken.trim()) {
+      setError("Application ID, access token, and location ID are all required.");
+      return;
+    }
+
+    setSaving(true);
+    const res = await fetch(`/api/trucks/${truck.id}/pos-connect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        applicationId: applicationId.trim(),
+        accessToken: accessToken.trim(),
+        locationId: locationId.trim(),
+        environment,
+        webhookSignatureKey: webhookSignatureKey.trim() || undefined,
+      }),
+    });
+    setSaving(false);
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      setError(body?.error ?? "Couldn't save your Square connection.");
+      return;
+    }
+
+    setTruck((prev) => ({
+      ...prev,
+      posConnected: true,
+      squareApplicationId: applicationId.trim(),
+      squareLocationId: locationId.trim(),
+      squareEnvironment: environment,
+    }));
+    // The access token/signing key were never stored client-side to begin
+    // with (this form is write-only for secrets) -- clear them so a
+    // second save doesn't look like it's re-submitting stale values.
+    setAccessToken("");
+    setWebhookSignatureKey("");
+    flash();
+  }
+
+  return (
+    <Card title="Payments (Square)">
+      <div className="mb-3">
+        <StatusBadge
+          active={truck.posConnected}
+          onLabel="Square connected"
+          offLabel="Square not connected"
+        />
+        <p className="mt-1.5 text-[11px] text-zinc-400">
+          Required before customers can pay for orders from this truck.
+          Get your Sandbox Application ID, Access Token, and Location ID
+          from the Square Developer Dashboard.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">
+            Environment
+          </label>
+          <select
+            value={environment}
+            onChange={(e) =>
+              setEnvironment(e.target.value === "production" ? "production" : "sandbox")
+            }
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+          >
+            <option value="sandbox">Sandbox (testing)</option>
+            <option value="production">Production (real charges)</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">
+            Application ID
+          </label>
+          <input
+            value={applicationId}
+            onChange={(e) => setApplicationId(e.target.value)}
+            placeholder="sandbox-sq0idb-…"
+            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">
+            Location ID
+          </label>
+          <input
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">
+            Access token
+          </label>
+          <input
+            type="password"
+            value={accessToken}
+            onChange={(e) => setAccessToken(e.target.value)}
+            placeholder={truck.posConnected ? "•••••••••••• (saved — re-enter to change)" : ""}
+            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+          />
+          <p className="mt-1 text-[11px] text-zinc-400">
+            Stored server-side only — never readable from the browser, not
+            even by you.
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-zinc-600">
+            Webhook signature key (optional, add after connecting)
+          </label>
+          <input
+            type="password"
+            value={webhookSignatureKey}
+            onChange={(e) => setWebhookSignatureKey(e.target.value)}
+            placeholder={
+              truck.posConnected ? "•••••••••••• (leave blank to keep current)" : ""
+            }
+            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
+          />
+          <p className="mt-1 break-all text-[11px] text-zinc-400">
+            After connecting, add a webhook subscription in Square's
+            dashboard pointing at{" "}
+            <span className="font-mono text-zinc-500">{webhookUrl}</span>,
+            then paste the signing key it gives you here.
+          </p>
+        </div>
+
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-full bg-zinc-900 px-4 py-2 text-xs font-semibold text-white transition disabled:opacity-50"
+          >
+            {saving ? "Saving…" : truck.posConnected ? "Update" : "Connect Square"}
+          </button>
+          <SavedFlash show={saved} />
+        </div>
       </form>
     </Card>
   );
