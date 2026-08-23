@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import HeroMealCard from "@/components/HeroMealCard";
@@ -10,6 +10,7 @@ import SwipeToOrder from "@/components/SwipeToOrder";
 import AuthModal from "@/components/AuthModal";
 import SquarePaymentModal from "@/components/SquarePaymentModal";
 import WalletCharge from "@/components/WalletCharge";
+import FaceIdSetupBanner from "@/components/FaceIdSetupBanner";
 import ProcessingScreen from "@/components/ProcessingScreen";
 import ConfirmationScreen from "@/components/ConfirmationScreen";
 import SignOutButton from "@/components/SignOutButton";
@@ -35,6 +36,13 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [stage, setStage] = useState<Stage>("idle");
   const [orderNumber, setOrderNumber] = useState("");
+  // null = not checked yet. This only drives whether the "set up Face ID"
+  // banner shows -- the actual gate that blocks a wallet charge without a
+  // fresh check lives server-side (see app/api/webauthn/authenticate/* and
+  // WalletCharge.tsx), so a slow/failed fetch here can't be used to skip
+  // it.
+  const [faceIdRegistered, setFaceIdRegistered] = useState<boolean | null>(null);
+  const [walletMessage, setWalletMessage] = useState<string | null>(null);
 
   const selectedMeal = useMemo(
     () => meals.find((m) => m.id === selectedId) ?? meals[0],
@@ -46,6 +54,22 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
   // freehand, or saved before the truck search retrofit -- keeps the
   // original simulated flow exactly as it's always worked.
   const isTruckLinked = Boolean(selectedMeal?.truckId && selectedMeal?.menuItemId);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/webauthn/status")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (!cancelled && body) setFaceIdRegistered(Boolean(body.registered));
+      })
+      .catch(() => {
+        // Leave it at null -- no banner either way, and the real gate
+        // still applies at charge time regardless.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Pre-warms Apple Pay/Google Pay for the selected meal *before* the
   // customer swipes, so the swipe itself can trigger the wallet's native
@@ -67,6 +91,7 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
   const walletReady = isTruckLinked && wallet.status === "ready" && Boolean(walletMethod);
 
   function handleSwipeComplete() {
+    setWalletMessage(null);
     setStage(walletReady ? "authorizing" : "authenticating");
   }
 
@@ -83,13 +108,27 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
     setStage("idle");
   }
 
-  function handleWalletAbort() {
+  function handleWalletAbort(message?: string) {
     // The wallet sheet was cancelled, timed out, or the charge failed --
     // no charge happened (WalletCharge cancels any order it created
     // before calling this), so the customer goes back to exactly the
     // pre-swipe screen, not into a different payment UI they didn't ask
-    // for.
+    // for. A message is only set for a genuine error, never for a plain
+    // cancel/timeout.
+    setWalletMessage(message ?? null);
     setStage("idle");
+  }
+
+  function handleNeedsFaceSetup() {
+    // No order was created and nothing was charged -- WalletCharge
+    // returns here before touching either. Show the setup banner instead
+    // of retrying a check this device can't pass yet.
+    setFaceIdRegistered(false);
+    setStage("idle");
+  }
+
+  function handleFaceIdRegistered() {
+    setFaceIdRegistered(true);
   }
 
   function handleProcessingDone() {
@@ -157,6 +196,14 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
 
       {stage === "idle" && selectedMeal && (
         <main className="flex min-h-0 flex-1 flex-col gap-3">
+          {isTruckLinked && faceIdRegistered === false && (
+            <FaceIdSetupBanner onRegistered={handleFaceIdRegistered} />
+          )}
+
+          {walletMessage && (
+            <p className="flex-shrink-0 text-center text-xs text-red-600">{walletMessage}</p>
+          )}
+
           <div className="min-h-0 flex-1">
             <HeroMealCard
               meal={selectedMeal}
@@ -212,6 +259,7 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
           method={walletMethod}
           onSuccess={handleSquarePaymentSuccess}
           onAbort={handleWalletAbort}
+          onNeedsFaceSetup={handleNeedsFaceSetup}
         />
       )}
 
