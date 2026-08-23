@@ -8,6 +8,7 @@ import ThumbnailRail from "@/components/ThumbnailRail";
 import MoreInfoSheet from "@/components/MoreInfoSheet";
 import SwipeToOrder from "@/components/SwipeToOrder";
 import AuthModal from "@/components/AuthModal";
+import SquarePaymentModal from "@/components/SquarePaymentModal";
 import ProcessingScreen from "@/components/ProcessingScreen";
 import ConfirmationScreen from "@/components/ConfirmationScreen";
 import SignOutButton from "@/components/SignOutButton";
@@ -38,6 +39,12 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
     [meals, selectedId]
   );
 
+  // A meal saved via the real "Find food truck" search (both ids present)
+  // gets the real Square-backed checkout; everything else -- meals typed
+  // freehand, or saved before the truck search retrofit -- keeps the
+  // original simulated flow exactly as it's always worked.
+  const isTruckLinked = Boolean(selectedMeal?.truckId && selectedMeal?.menuItemId);
+
   function handleSwipeComplete() {
     setStage("authenticating");
   }
@@ -46,16 +53,25 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
     setStage("processing");
   }
 
+  function handleSquarePaymentSuccess(realOrderNumber: string) {
+    setOrderNumber(realOrderNumber);
+    setStage("processing");
+  }
+
   function handleAuthCancel() {
     setStage("idle");
   }
 
   function handleProcessingDone() {
-    setOrderNumber(generateOrderNumber());
+    // A truck-linked order already has a real order number set by
+    // handleSquarePaymentSuccess -- only fall back to a generated one for
+    // the legacy simulated flow, which never set one.
+    setOrderNumber((prev) => prev || generateOrderNumber());
     setStage("confirmed");
   }
 
   function handleNewOrder() {
+    setOrderNumber("");
     setStage("idle");
   }
 
@@ -159,13 +175,21 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
         />
       )}
 
-      {stage === "authenticating" && selectedMeal && (
-        <AuthModal
-          meal={selectedMeal}
-          onSuccess={handleAuthSuccess}
-          onCancel={handleAuthCancel}
-        />
-      )}
+      {stage === "authenticating" &&
+        selectedMeal &&
+        (isTruckLinked ? (
+          <SquarePaymentModal
+            meal={selectedMeal}
+            onSuccess={handleSquarePaymentSuccess}
+            onCancel={handleAuthCancel}
+          />
+        ) : (
+          <AuthModal
+            meal={selectedMeal}
+            onSuccess={handleAuthSuccess}
+            onCancel={handleAuthCancel}
+          />
+        ))}
 
       {stage === "processing" && <ProcessingScreen onDone={handleProcessingDone} />}
 

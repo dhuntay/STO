@@ -19,6 +19,14 @@ export default function AddMealForm({ trucks }: Props) {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [autoFilled, setAutoFilled] = useState(false);
 
+  // Which real truck/menu item (if any) this meal is linked to. Both are
+  // what let a later swipe on this meal create a real order + go through
+  // Square (see POST /api/orders, which requires both to be non-null) --
+  // a meal typed freehand, or where the customer picked "Other" instead of
+  // a real menu item, falls back to the legacy simulated flow instead.
+  const [selectedTruckId, setSelectedTruckId] = useState<string | null>(null);
+  const [selectedMenuItemId, setSelectedMenuItemId] = useState<string | null>(null);
+
   const [name, setName] = useState("");
   const [useCustomName, setUseCustomName] = useState(true);
   const [hasSelectedTruck, setHasSelectedTruck] = useState(false);
@@ -32,6 +40,7 @@ export default function AddMealForm({ trucks }: Props) {
     setRestaurantAddress(truck.locationLabel);
     setCuisineType(truck.cuisine);
     setHasSelectedTruck(true);
+    setSelectedTruckId(truck.id);
 
     const available = truck.menuItems.filter(
       (item) => item.isAvailableToday && !item.isSoldOut
@@ -47,17 +56,21 @@ export default function AddMealForm({ trucks }: Props) {
       setIngredients("");
       setPrice("");
       setAutoFilled(false);
+      setSelectedMenuItemId(null);
     }
   }
 
   /** Selecting a real menu item fills in what the truck owner set for it, so
-   * the customer isn't retyping it. Both stay editable. */
+   * the customer isn't retyping it. Both stay editable -- editing them
+   * afterwards doesn't unlink the meal from the item, since it's still the
+   * same order-able thing, just described slightly differently. */
   function applyMenuItem(item: MenuItem | undefined) {
     if (!item) return;
     setName(item.name);
     setIngredients(item.mainIngredients.join(", "));
     setPrice(item.price.toFixed(2));
     setAutoFilled(true);
+    setSelectedMenuItemId(item.id);
   }
 
   function handleRestaurantTyped(value: string) {
@@ -70,6 +83,8 @@ export default function AddMealForm({ trucks }: Props) {
     setUseCustomName(true);
     setHasSelectedTruck(false);
     setAutoFilled(false);
+    setSelectedTruckId(null);
+    setSelectedMenuItemId(null);
   }
 
   function handleNameSelectChange(value: string) {
@@ -79,6 +94,9 @@ export default function AddMealForm({ trucks }: Props) {
       setIngredients("");
       setPrice("");
       setAutoFilled(false);
+      // Still a real truck (selectedTruckId stays set) -- just not a real
+      // menu item, so this meal can't go through the Square flow.
+      setSelectedMenuItemId(null);
       return;
     }
     applyMenuItem(menuItems.find((item) => item.name === value));
@@ -120,6 +138,8 @@ export default function AddMealForm({ trucks }: Props) {
         restaurantAddress,
         restaurantPlaceId: null,
         cuisineType,
+        truckId: selectedTruckId,
+        menuItemId: selectedMenuItemId,
       }),
     });
     setLoading(false);

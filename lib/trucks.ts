@@ -1,6 +1,8 @@
 // Row types mirror the `trucks` / `menu_items` tables from
-// 0005_create_food_truck_platform_schema.sql. Domain types + mappers follow
-// the same pattern as SavedMealRow/SavedMeal/mapMealRow in lib/types.ts.
+// 0005_create_food_truck_platform_schema.sql (plus the Square config
+// columns added in trucks_public_square_config_columns). Domain types +
+// mappers follow the same pattern as SavedMealRow/SavedMeal/mapMealRow in
+// lib/types.ts.
 
 export type TruckRow = {
   id: string;
@@ -15,6 +17,17 @@ export type TruckRow = {
   closes_at: string | null;
   is_open: boolean;
   accepting_pickup: boolean;
+  /** Whether this truck has a Square connection saved. The connection's
+   * secrets live only in truck_pos_connections, which no client role can
+   * read -- customers use this flag to know whether checkout is even
+   * possible, and the operator dashboard uses it to show connected/not. */
+  pos_connected: boolean;
+  /** Non-secret Square config, duplicated here from truck_pos_connections
+   * so the customer-facing Web Payments SDK can initialize straight from
+   * the truck data already being fetched, without its own API round trip. */
+  square_application_id: string | null;
+  square_location_id: string | null;
+  square_environment: string | null;
 };
 
 export type MenuItemRow = {
@@ -53,6 +66,10 @@ export type Truck = {
   isOpen: boolean;
   acceptingPickup: boolean;
   menuItems: MenuItem[];
+  posConnected: boolean;
+  squareApplicationId: string | null;
+  squareLocationId: string | null;
+  squareEnvironment: "sandbox" | "production" | null;
 };
 
 export function mapMenuItemRow(row: MenuItemRow): MenuItem {
@@ -85,6 +102,15 @@ export function mapTruckRow(
     isOpen: row.is_open,
     acceptingPickup: row.accepting_pickup,
     menuItems: (row.menu_items ?? []).map(mapMenuItemRow),
+    posConnected: row.pos_connected,
+    squareApplicationId: row.square_application_id,
+    squareLocationId: row.square_location_id,
+    squareEnvironment:
+      row.square_environment === "production"
+        ? "production"
+        : row.square_environment === "sandbox"
+          ? "sandbox"
+          : null,
   };
 }
 

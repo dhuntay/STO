@@ -22,6 +22,15 @@ export type SavedMeal = {
   restaurantAddress: string | null;
   restaurantPlaceId: string | null;
   cuisineType: string | null;
+
+  /** Set when this meal was created via the "Find food truck" search
+   * (see TruckAutocompleteInput/AddMealForm) rather than the legacy
+   * Google-Places restaurant field. Both null for meals saved before the
+   * truck search retrofit, or where the customer typed the restaurant
+   * freehand. A truck-linked meal is what makes a real Square-backed order
+   * possible — see POST /api/orders. */
+  truckId: string | null;
+  menuItemId: string | null;
 };
 
 export function formatCurrency(amount: number): string {
@@ -47,6 +56,8 @@ export type SavedMealRow = {
   restaurant_address: string | null;
   restaurant_place_id: string | null;
   cuisine_type: string | null;
+  truck_id: string | null;
+  menu_item_id: string | null;
 };
 
 export function mapMealRow(row: SavedMealRow): SavedMeal {
@@ -65,5 +76,7 @@ export function mapMealRow(row: SavedMealRow): SavedMeal {
     restaurantAddress: row.restaurant_address,
     restaurantPlaceId: row.restaurant_place_id,
     cuisineType: row.cuisine_type,
+    truckId: row.truck_id,
+    menuItemId: row.menu_item_id,
   };
 }

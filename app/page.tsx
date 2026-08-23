@@ -7,7 +7,7 @@ import { searchMealPhoto } from "@/lib/unsplash";
 const MEAL_COLUMNS =
   "id, user_id, restaurant, name, main_ingredients, price, created_at, " +
   "image_url, image_photographer_name, image_photographer_url, image_unsplash_url, " +
-  "restaurant_address, restaurant_place_id, cuisine_type";
+  "restaurant_address, restaurant_place_id, cuisine_type, truck_id, menu_item_id";
 
 export default async function Home() {
   const supabase = await createClient();

@@ -11,12 +11,14 @@ type CreateMealBody = {
   restaurantAddress?: unknown;
   restaurantPlaceId?: unknown;
   cuisineType?: unknown;
+  truckId?: unknown;
+  menuItemId?: unknown;
 };
 
 const MEAL_COLUMNS =
   "id, user_id, restaurant, name, main_ingredients, price, created_at, " +
   "image_url, image_photographer_name, image_photographer_url, image_unsplash_url, " +
-  "restaurant_address, restaurant_place_id, cuisine_type";
+  "restaurant_address, restaurant_place_id, cuisine_type, truck_id, menu_item_id";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -48,6 +50,8 @@ export async function POST(request: Request) {
     typeof body.restaurantPlaceId === "string" ? body.restaurantPlaceId : null;
   const cuisineType =
     typeof body.cuisineType === "string" ? body.cuisineType : null;
+  const truckId = typeof body.truckId === "string" ? body.truckId : null;
+  const menuItemId = typeof body.menuItemId === "string" ? body.menuItemId : null;
 
   if (!restaurant || !name || mainIngredients.length === 0) {
     return NextResponse.json(
@@ -57,6 +61,29 @@ export async function POST(request: Request) {
   }
   if (!Number.isFinite(price) || price < 0) {
     return NextResponse.json({ error: "Enter a valid price." }, { status: 400 });
+  }
+
+  // A meal can only be linked to a menu item that actually belongs to the
+  // linked truck -- guards against the two ids getting out of sync (e.g. a
+  // stale client state) before it ever reaches the truck_id/menu_item_id
+  // foreign keys. Silently drop the link rather than erroring the whole
+  // save: a meal that fails this check just falls back to the legacy
+  // simulated-checkout flow instead of blocking the customer.
+  let linkedTruckId: string | null = null;
+  let linkedMenuItemId: string | null = null;
+  if (truckId && menuItemId) {
+    const { data: item } = await supabase
+      .from("menu_items")
+      .select("id")
+      .eq("id", menuItemId)
+      .eq("truck_id", truckId)
+      .maybeSingle();
+    if (item) {
+      linkedTruckId = truckId;
+      linkedMenuItemId = menuItemId;
+    }
+  } else if (truckId) {
+    linkedTruckId = truckId;
   }
 
   const photo = await searchMealPhoto(name);
@@ -75,6 +102,8 @@ export async function POST(request: Request) {
       image_photographer_name: photo?.photographerName ?? null,
       image_photographer_url: photo?.photographerProfileUrl ?? null,
       image_unsplash_url: photo?.unsplashUrl ?? null,
+      truck_id: linkedTruckId,
+      menu_item_id: linkedMenuItemId,
     })
     .select(MEAL_COLUMNS)
     .single();
