@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Truck, distanceMiles, truckMatchesQuery } from "@/lib/trucks";
 
@@ -50,7 +51,15 @@ export default function TruckDiscoveryScreen({ trucks }: Props) {
         <h1 className="text-lg font-bold tracking-tight text-zinc-900">
           Slide to Order
         </h1>
-        <span className="text-xs text-zinc-400">Pickup</span>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/operator"
+            className="text-xs font-medium text-zinc-500 hover:text-zinc-700"
+          >
+            Own a truck?
+          </Link>
+          <span className="text-xs text-zinc-400">Pickup</span>
+        </div>
       </header>
 
       <label className="mb-4 flex-shrink-0">
