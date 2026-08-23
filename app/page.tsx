@@ -19,10 +19,13 @@ export default async function Home() {
     redirect("/login");
   }
 
+  // Newest-saved meal first, so the meal you just added is what greets you
+  // -- and what a fresh swipe would order -- rather than being buried at
+  // the end of the thumbnail rail.
   const { data, error } = await supabase
     .from("saved_meals")
     .select(MEAL_COLUMNS)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   if (error) {
     throw new Error(`Failed to load saved meals: ${error.message}`);
@@ -32,7 +35,7 @@ export default async function Home() {
     mapMealRow(row as unknown as SavedMealRow)
   );
 
-  // Lazily backfill a hero photo for any meal that doesn't have one yet —
+  // Lazily backfill a hero photo for any meal that doesn't have one yet --
   // covers meals saved before Unsplash was wired up, or before
   // UNSPLASH_ACCESS_KEY was configured. searchMealPhoto no-ops if the key
   // still isn't set.

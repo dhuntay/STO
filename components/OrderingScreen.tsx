@@ -83,11 +83,13 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
     setStage("idle");
   }
 
-  function handleWalletFallback() {
-    // The pre-warmed wallet path didn't pan out (declined, cancelled, or
-    // turned out not to be usable after all) -- fall back to the
-    // card-first modal instead of leaving the customer stuck.
-    setStage("authenticating");
+  function handleWalletAbort() {
+    // The wallet sheet was cancelled, timed out, or the charge failed --
+    // no charge happened (WalletCharge cancels any order it created
+    // before calling this), so the customer goes back to exactly the
+    // pre-swipe screen, not into a different payment UI they didn't ask
+    // for.
+    setStage("idle");
   }
 
   function handleProcessingDone() {
@@ -167,6 +169,7 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
             selectedId={selectedMeal.id}
             onSelect={setSelectedId}
             onAddMeal={() => router.push("/meals/new")}
+            onRemove={handleRemoveMeal}
           />
 
           <SwipeToOrder onSwipeComplete={handleSwipeComplete} />
@@ -208,7 +211,7 @@ export default function OrderingScreen({ initialMeals, userEmail }: Props) {
           meal={selectedMeal}
           method={walletMethod}
           onSuccess={handleSquarePaymentSuccess}
-          onFallback={handleWalletFallback}
+          onAbort={handleWalletAbort}
         />
       )}
 

@@ -100,6 +100,13 @@ export default function SquarePaymentModal({ meal, onSuccess, onCancel }: Props)
   const [hasApplePay, setHasApplePay] = useState(false);
   const [hasGooglePay, setHasGooglePay] = useState(false);
   const mountedRef = useRef(true);
+  // Belt-and-suspenders against a double-charge: `stage === "paying"`
+  // disables the buttons, but that disabled attribute only takes effect
+  // after React re-renders. This ref flips synchronously on the very
+  // first call, so a second click landing in the same tick (before that
+  // re-render happens) is rejected immediately rather than racing a
+  // second tokenize()/charge through.
+  const chargingRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -229,7 +236,8 @@ export default function SquarePaymentModal({ meal, onSuccess, onCancel }: Props)
   }, [stage, order]);
 
   async function charge(method: SquarePaymentMethod) {
-    if (!order) return;
+    if (!order || chargingRef.current) return;
+    chargingRef.current = true;
     setStage("paying");
     setError(null);
 
@@ -253,6 +261,8 @@ export default function SquarePaymentModal({ meal, onSuccess, onCancel }: Props)
       if (!mountedRef.current) return;
       setError(err instanceof Error ? err.message : "Payment failed.");
       setStage("ready");
+    } finally {
+      chargingRef.current = false;
     }
   }
 
