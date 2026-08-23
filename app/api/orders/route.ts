@@ -63,7 +63,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: truck, error: truckError } = await supabase
+  // Supabase's TS client can only infer a select()'s row shape from a
+  // genuine string literal -- building it with `+` (as below) defeats
+  // that, and every property read off the result would otherwise fail to
+  // type-check against the fallback error type it infers instead. Cast
+  // explicitly to the shape this query actually selects, same pattern
+  // used everywhere else in the codebase for a *_COLUMNS constant.
+  type TruckAvailabilityRow = {
+    id: string;
+    is_active: boolean;
+    is_open: boolean;
+    accepting_pickup: boolean;
+    pos_connected: boolean;
+    square_application_id: string | null;
+    square_location_id: string | null;
+    square_environment: string | null;
+  };
+
+  const { data: truckData, error: truckError } = await supabase
     .from("trucks")
     .select(
       "id, is_active, is_open, accepting_pickup, pos_connected, " +
@@ -71,6 +88,7 @@ export async function POST(request: Request) {
     )
     .eq("id", meal.truck_id)
     .maybeSingle();
+  const truck = truckData as unknown as TruckAvailabilityRow | null;
 
   if (truckError) {
     return NextResponse.json({ error: truckError.message }, { status: 500 });
