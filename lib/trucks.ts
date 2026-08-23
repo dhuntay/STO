@@ -108,6 +108,31 @@ export function distanceMiles(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// STO is nationwide -- trucks in another state are never relevant to a
+// customer's search, so "nearby" is a hard cutoff, not just a sort order.
+// See STO_Consolidated_Context.md, "Truck Search & Menu Selection UX".
+export const MAX_TRUCK_SEARCH_RADIUS_MILES = 10;
+
+// Filters (not just sorts) trucks down to those within `radiusMiles` of the
+// given coordinates. A truck with no recorded location is excluded, since
+// there's no way to confirm it's actually nearby. When `coords` is null
+// (location denied/unavailable), every truck is returned unfiltered --
+// callers should surface that as a "showing all trucks" state rather than
+// silently pretending the radius was applied.
+export function trucksWithinRadius(
+  trucks: Truck[],
+  coords: { lat: number; lng: number } | null,
+  radiusMiles: number = MAX_TRUCK_SEARCH_RADIUS_MILES
+): Truck[] {
+  if (!coords) return trucks;
+  return trucks.filter((t) => {
+    if (t.lat == null || t.lng == null) return false;
+    return (
+      distanceMiles(coords.lat, coords.lng, t.lat, t.lng) <= radiusMiles
+    );
+  });
+}
+
 // Does this truck match a "Find food truck" search query by truck name,
 // cuisine, or any of its menu item names? See STO_Consolidated_Context.md,
 // "Truck Search & Menu Selection UX".

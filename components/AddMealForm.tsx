@@ -2,64 +2,73 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import RestaurantAutocompleteInput, {
-  SelectedPlace,
-} from "@/components/RestaurantAutocompleteInput";
-import { resolveCuisineMenu, MenuItem } from "@/lib/cuisineMenu";
+import TruckAutocompleteInput from "@/components/TruckAutocompleteInput";
+import { Truck, MenuItem } from "@/lib/trucks";
 
 const OTHER_OPTION = "__other__";
 
-export default function AddMealForm() {
+type Props = {
+  trucks: Truck[];
+};
+
+export default function AddMealForm({ trucks }: Props) {
   const router = useRouter();
   const [restaurant, setRestaurant] = useState("");
   const [restaurantAddress, setRestaurantAddress] = useState<string | null>(null);
-  const [restaurantPlaceId, setRestaurantPlaceId] = useState<string | null>(null);
   const [cuisineType, setCuisineType] = useState<string | null>(null);
-  const [cuisineLabel, setCuisineLabel] = useState<string | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [autoFilled, setAutoFilled] = useState(false);
 
   const [name, setName] = useState("");
   const [useCustomName, setUseCustomName] = useState(true);
+  const [hasSelectedTruck, setHasSelectedTruck] = useState(false);
   const [ingredients, setIngredients] = useState("");
   const [price, setPrice] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handlePlaceSelected(place: SelectedPlace) {
-    setRestaurant(place.name);
-    setRestaurantAddress(place.address);
-    setRestaurantPlaceId(place.placeId);
+  function handleTruckSelected(truck: Truck) {
+    setRestaurant(truck.name);
+    setRestaurantAddress(truck.locationLabel);
+    setCuisineType(truck.cuisine);
+    setHasSelectedTruck(true);
 
-    const { cuisineType, label, items } = resolveCuisineMenu(place.types);
-    setCuisineType(cuisineType);
-    setCuisineLabel(label);
-    setMenuItems(items);
-    setUseCustomName(false);
-    applyMenuItem(items[0]);
+    const available = truck.menuItems.filter(
+      (item) => item.isAvailableToday && !item.isSoldOut
+    );
+    setMenuItems(available);
+
+    if (available.length > 0) {
+      setUseCustomName(false);
+      applyMenuItem(available[0]);
+    } else {
+      setUseCustomName(true);
+      setName("");
+      setIngredients("");
+      setPrice("");
+      setAutoFilled(false);
+    }
   }
 
-  /** Selecting a known menu item fills in what that dish normally contains
-   * and typically costs, so the customer isn't retyping it. Both stay
-   * editable. */
+  /** Selecting a real menu item fills in what the truck owner set for it, so
+   * the customer isn't retyping it. Both stay editable. */
   function applyMenuItem(item: MenuItem | undefined) {
     if (!item) return;
     setName(item.name);
-    setIngredients(item.ingredients.join(", "));
+    setIngredients(item.mainIngredients.join(", "));
     setPrice(item.price.toFixed(2));
     setAutoFilled(true);
   }
 
   function handleRestaurantTyped(value: string) {
     setRestaurant(value);
-    // Once the user edits the restaurant name away from what autocomplete
-    // filled in, the previously matched place/cuisine no longer applies.
+    // Once the user edits the truck name away from what autocomplete filled
+    // in, the previously matched truck/menu no longer applies.
     setRestaurantAddress(null);
-    setRestaurantPlaceId(null);
     setCuisineType(null);
-    setCuisineLabel(null);
     setMenuItems([]);
     setUseCustomName(true);
+    setHasSelectedTruck(false);
     setAutoFilled(false);
   }
 
@@ -109,7 +118,7 @@ export default function AddMealForm() {
         mainIngredients,
         price: parsedPrice,
         restaurantAddress,
-        restaurantPlaceId,
+        restaurantPlaceId: null,
         cuisineType,
       }),
     });
@@ -135,12 +144,13 @@ export default function AddMealForm() {
           htmlFor="restaurant"
           className="mb-1 block text-xs font-medium text-zinc-600"
         >
-          Restaurant
+          Find food truck
         </label>
-        <RestaurantAutocompleteInput
+        <TruckAutocompleteInput
+          trucks={trucks}
           value={restaurant}
           onChange={handleRestaurantTyped}
-          onPlaceSelected={handlePlaceSelected}
+          onTruckSelected={handleTruckSelected}
         />
         {restaurantAddress && (
           <p className="mt-1 truncate text-[11px] text-zinc-400">
@@ -166,15 +176,14 @@ export default function AddMealForm() {
               className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
             >
               {menuItems.map((item) => (
-                <option key={item.name} value={item.name}>
+                <option key={item.id} value={item.name}>
                   {item.name}
                 </option>
               ))}
               <option value={OTHER_OPTION}>Other (type my own)…</option>
             </select>
             <p className="mt-1 text-[11px] text-zinc-400">
-              Common {cuisineLabel?.toLowerCase()} items — not {restaurant}
-              &apos;s confirmed menu.
+              {restaurant}&apos;s menu today — added by the truck owner.
             </p>
           </>
         ) : (
@@ -186,6 +195,12 @@ export default function AddMealForm() {
             placeholder="Friday Pepperoni Pizza"
             className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
           />
+        )}
+        {hasSelectedTruck && menuItems.length === 0 && (
+          <p className="mt-1 text-[11px] text-zinc-400">
+            This truck hasn&apos;t listed any available items right now —
+            type the meal name yourself.
+          </p>
         )}
       </div>
 
@@ -206,7 +221,7 @@ export default function AddMealForm() {
         />
         <p className="mt-1 text-[11px] text-zinc-400">
           {autoFilled
-            ? "Typical ingredients for this dish — edit if yours differs."
+            ? "From the truck's menu — edit if yours differs."
             : "Separate with commas."}
         </p>
       </div>
@@ -232,16 +247,16 @@ export default function AddMealForm() {
         />
         {autoFilled && (
           <p className="mt-1 text-[11px] text-zinc-400">
-            Typical price for this dish — edit to match what you actually pay.
+            Price set by the truck owner — edit to match what you actually
+            pay.
           </p>
         )}
       </div>
 
       {autoFilled && (
         <p className="rounded-xl bg-zinc-50 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
-          Ingredients and price were filled in from a typical{" "}
-          {cuisineLabel?.toLowerCase()} order. Once a restaurant is connected
-          through its POS, these will come from the real menu instead.
+          Ingredients and price were filled in from {restaurant}&apos;s menu,
+          as set by the truck owner.
         </p>
       )}
 
