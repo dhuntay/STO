@@ -587,6 +587,15 @@ function MenuItemsCard({
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+    // Required, not just suggested: the customer's "Add a saved meal" form
+    // shows this straight from the menu item with no way to leave it blank
+    // (it's meant to be the truck's real ingredient list, not something the
+    // customer types themselves) -- so an item saved without any here would
+    // strand a customer who picks it. See AddMealForm.tsx.
+    if (mainIngredients.length === 0) {
+      setError("List at least one main ingredient.");
+      return;
+    }
 
     setAdding(true);
     const supabase = createClient();
@@ -682,9 +691,13 @@ function MenuItemsCard({
                   <p className="truncate text-sm font-medium text-zinc-900">
                     {item.name}
                   </p>
-                  {item.mainIngredients.length > 0 && (
+                  {item.mainIngredients.length > 0 ? (
                     <p className="truncate text-xs text-zinc-500">
                       {item.mainIngredients.join(", ")}
+                    </p>
+                  ) : (
+                    <p className="truncate text-xs text-amber-600">
+                      No ingredients listed — remove and re-add to fix.
                     </p>
                   )}
                 </div>
@@ -770,6 +783,7 @@ function MenuItemsCard({
             className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:outline-none"
           />
           <input
+            required
             value={itemIngredients}
             onChange={(e) => setItemIngredients(e.target.value)}
             placeholder="Pork belly, scallion, hoisin"
@@ -778,7 +792,8 @@ function MenuItemsCard({
         </div>
         <p className="text-[11px] text-zinc-400">
           Fixed values, no size/add-on variants for now — separate
-          ingredients with commas.
+          ingredients with commas. Customers see these exactly as typed here,
+          so it's required.
         </p>
         {error && <p className="text-xs text-red-600">{error}</p>}
         <button
